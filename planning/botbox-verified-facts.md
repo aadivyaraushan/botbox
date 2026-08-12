@@ -5,7 +5,8 @@
 ## Claude Code (docs: code.claude.com/docs)
 
 - Headless send: `claude -p "<msg>" --output-format stream-json --verbose --include-partial-messages` (`--verbose` is required with stream-json; `--include-partial-messages` requires both `-p` and stream-json).
-- Stream events: `system/init` (first; has `session_id`, `model`, `tools`, `mcp_servers`), `assistant` / `user` (message turns), `stream_event` (token deltas), `result` (last line; has `result`, `total_cost_usd`, `session_id`, `subtype: success|error_max_turns|error_during_execution|...`), `system/api_retry`.
+- Stream events: `system/init` (first; has `session_id`, `model`, `tools`, `mcp_servers`), `assistant` / `user` (message turns), `stream_event` (token deltas — docs emphasize `text_delta`; raw Claude API also wraps `thinking` / `thinking_delta` inside `stream_event` when extended thinking is on), `result` (last line; has `result`, `total_cost_usd`, `session_id`, `subtype: success|error_max_turns|error_during_execution|...`), `system/api_retry`.
+- ⚠️ `thinking_delta` in headless `claude -p` stream-json: **not live-captured**. Plan maps `stream_event` `thinking_delta` / content_block `thinking` → `reasoning-text`, with fallback to `assistant` message `thinking` content. M3 `thinking.jsonl` fixture is hand-crafted; live capture at M3 step 1 records whether thinking actually appears.
 - Resume: `--resume <session-id>` (works across directories). Force id on new session: `--session-id <uuid>`. Branch: `--fork-session`. Sessions persist indefinitely at `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl`; no documented resume-count limit ⚠️ (no explicit ceiling stated either way).
 - Auto-compact: works headless; tunable via `--autocompact <auto|tokens>` (e.g. `--autocompact 500k`).
 - System prompt: `--append-system-prompt-file <path>` (append) / `--system-prompt-file <path>` (replace). SDK equivalent exists.
@@ -17,7 +18,7 @@
 
 ## Codex CLI (docs: learn.chatgpt.com / developers.openai.com)
 
-- Headless send: `codex exec "<msg>" --json` → JSONL on stdout. Events: `thread.started` (has `thread_id`), `turn.started`, `turn.completed`, `turn.failed`, `item.started`/`item.completed` (item types: `agent_message`, `reasoning`, `command_execution`, `file_change`, `mcp_tool_call`, `web_search`, `plan_update`), `error`.
+- Headless send: `codex exec "<msg>" --json` → JSONL on stdout. Events: `thread.started` (has `thread_id`), `turn.started`, `turn.completed`, `turn.failed`, `item.started`/`item.completed` (item types: `agent_message`, `reasoning`, `command_execution`, `file_change`, `mcp_tool_call`, `web_search`, `plan_update`), `error`. Plan maps `item.*{reasoning}` → `reasoning-text`.
 - Resume: `codex exec resume <SESSION_ID> "<msg>"` (or `resume --last`). Sessions = JSONL under `~/.codex/sessions/YYYY/MM/DD/`. Resume replays transcript. Auto-compaction fires near `model_auto_compact_token_limit`; no documented resume-count limit.
 - Instructions: `AGENTS.md` auto-discovered (global `~/.codex/AGENTS.md`, then project-root→cwd, 32 KiB cap default); config.toml `developer_instructions` (injected as developer message) or `model_instructions_file` (full replacement). No verified `--append-system-prompt` CLI flag ⚠️ (third-party claim only — use AGENTS.md).
 - Unattended: `--sandbox {read-only|workspace-write|danger-full-access}` + `--ask-for-approval never`; `--dangerously-bypass-approvals-and-sandbox` exists, docs say only inside an external sandbox (our container qualifies).
@@ -48,3 +49,15 @@
 
 Copy hindsight's shape (129-line README): centered banner + `<h1>` + one bold plain-English tagline + 3–5 function-relevant badges → **hook** (relatable pain quote) → 2 short paragraphs → **show the artifact** (screenshot/gif here, since Botbox's value is a UI+process) → `## How it works` (one mermaid diagram + numbered steps) → `## Install` (copy-pasteable, "That's it.") → trust/limits **table** → `## FAQ` (preempt skepticism: costs, security, "is my traffic really my IP?") → `## How it's built` (prose→filepath map) → `## Contributing` → `## License` (MIT).
 From pgGraph take the hygiene hindsight lacks: `.github/ISSUE_TEMPLATE/` (bug_report, feature_request), `CONTRIBUTING.md`, CI workflow + badge, `SECURITY.md`. Raw reference READMEs saved in scratchpad (`pgGraph_README.md`, `hindsight_README.md`).
+
+## Trace UI / product marks (verified 2026-08-13)
+
+- OpenCode (OSS reference for the chat timeline): `packages/ui/src/components/message-part.tsx` at `anomalyco/opencode@5d2dc888`. `PART_MAPPING` keys used by Botbox: `reasoning` (collapsible), `tool` (named row + expand), `text`, `compaction` (centered divider). `renderable()` shows reasoning when `showReasoningSummaries` is true and text is non-empty.
+- Claude Code product mark: official VS Code extension `resources/claude-logo.svg` (Anthropic spark, default fill `#D97757`). Botbox uses the same path with `fill="currentColor"`. Extension version pinned **2.1.228**; path `d` sha256 `7c9c195500ec3caed3a183d8f8758a2252955ee76af691b3fc5c20b3cd8caa58` (computed 2026-08-13 from the installed extension file).
+- Codex product mark: Open VSX `openai.chatgpt` **26.5803.61601** (fetched 2026-08-13) lists `files.icon` = `blossom.dark.png` — the OpenAI blossom **is** the Codex IDE icon. SVG path = simple-icons `openai` (CC0-1.0), path `d` sha256 `8af0a604a2db2bd30ac22d6a968dfa731fe00436c6e85a33b6b45215182c83e8`.
+
+## Host OS vs bot image (2026-08-13)
+
+- Author known-good VPS: Debian, 8 vCPU, 16 GB RAM, 128 GB disk. Bootstrap target: Debian 12 (bookworm). Docker Engine install docs: https://docs.docker.com/engine/install/debian/ (fetched as the install path; package names re-verified at M6).
+- Bot image remains `FROM ubuntu:24.04`. Claude Code and Codex run in that container via `docker exec`, not as host binaries. Host Debian vs Ubuntu does not change the harness CLI environment.
+- Optional get-a-box still uses Hetzner `cx33` + Ubuntu 24.04 for installers who do not already have a box. Author path does not create a Hetzner VM.

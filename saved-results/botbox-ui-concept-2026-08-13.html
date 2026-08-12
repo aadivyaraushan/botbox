@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Botbox — UI concept</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0c0c0c;
+      --bg-2: #141414;
+      --bg-3: #1c1c1c;
+      --line: #2a2a2a;
+      --ink: #ececec;
+      --muted: #8d8d8d;
+      --accent: #c4f542;
+      --accent-ink: #111;
+      --danger: #e24b3a;
+      --warn: #e6b84c;
+      --radius: 6px;
+      --font: "IBM Plex Sans", "Segoe UI", sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: var(--font);
+      background: #1a1a1a;
+      color: var(--ink);
+      display: grid;
+      place-items: center;
+      min-height: 100%;
+    }
+    button, input, textarea { font-family: inherit; }
+    button { cursor: pointer; }
+    .stage {
+      width: min(1280px, 100vw - 32px);
+      height: min(800px, 100vh - 88px);
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .titlebar {
+      height: 38px;
+      background: #101010;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      flex: none;
+    }
+    .dots { display: flex; gap: 6px; }
+    .dots i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+    .dots i:nth-child(1) { background: #ff5f57; }
+    .dots i:nth-child(2) { background: #febc2e; }
+    .dots i:nth-child(3) { background: #28c840; }
+    .titlebar h1 {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+    .app { flex: 1; display: grid; min-height: 0; }
+    .app.main { grid-template-columns: 200px 1fr 420px; }
+    .sidebar {
+      background: var(--bg-2);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 10px 12px;
+    }
+    .mark {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 0 8px 14px;
+    }
+    .bot {
+      text-align: left;
+      background: transparent;
+      border: 0;
+      color: var(--ink);
+      padding: 8px 8px;
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      width: 100%;
+    }
+    .bot[aria-current="true"] { background: var(--bg-3); }
+    .bot .name { font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.live { background: var(--accent); }
+    .bot .meta { font-size: 11px; color: var(--muted); padding-left: 14px; }
+    .grow { flex: 1; }
+    .newbot {
+      background: transparent;
+      border: 0;
+      color: var(--muted);
+      text-align: left;
+      padding: 8px;
+      font-size: 12px;
+    }
+    .newbot:hover { color: var(--ink); }
+    .chat {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      border-right: 1px solid var(--line);
+    }
+    .banner {
+      display: none;
+      background: #2a2210;
+      color: var(--warn);
+      font-size: 12px;
+      padding: 8px 14px;
+      border-bottom: 1px solid #3d3218;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    body[data-state="offline"] .banner { display: flex; }
+    .banner button {
+      background: transparent;
+      border: 1px solid var(--warn);
+      color: var(--warn);
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .transcript {
+      flex: 1;
+      overflow: auto;
+      padding: 20px 22px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .msg { max-width: 92%; font-size: 13.5px; line-height: 1.5; }
+    .msg.user {
+      align-self: flex-end;
+      background: var(--bg-3);
+      padding: 10px 12px;
+      border-radius: 8px;
+    }
+    .msg.bot { align-self: flex-start; color: var(--ink); }
+    .think {
+      font-size: 12px;
+      color: var(--muted);
+      border-left: 1px solid var(--line);
+      padding: 0 0 0 10px;
+      margin: 4px 0 8px;
+    }
+    .think summary {
+      cursor: pointer;
+      list-style: none;
+      font-size: 11px;
+      letter-spacing: 0.02em;
+    }
+    .think summary::-webkit-details-marker { display: none; }
+    .think p { margin: 6px 0 0; line-height: 1.45; }
+    .tool-row {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--bg-3);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 5px 8px;
+      margin: 6px 0;
+    }
+    .tool-row summary { cursor: pointer; list-style: none; }
+    .tool-row summary::-webkit-details-marker { display: none; }
+    .tool-row pre {
+      margin: 6px 0 0;
+      white-space: pre-wrap;
+      color: #bdbdbd;
+      font-size: 10.5px;
+      line-height: 1.4;
+    }
+    .compact {
+      display: none;
+      text-align: center;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.04em;
+      padding: 8px 0;
+    }
+    .compact::before, .compact::after {
+      content: "";
+      display: inline-block;
+      width: 28%;
+      height: 1px;
+      background: var(--line);
+      vertical-align: middle;
+      margin: 0 8px;
+    }
+    body[data-compact="1"] .compact { display: block; }
+    .caret {
+      display: inline-block;
+      width: 7px;
+      height: 13px;
+      background: var(--accent);
+      margin-left: 2px;
+      vertical-align: -1px;
+      animation: blink 1s steps(1) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    body[data-state="idle"] .caret,
+    body[data-state="offline"] .caret { display: none; }
+    .composer {
+      border-top: 1px solid var(--line);
+      padding: 10px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .harnesses {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .harness {
+      width: 32px;
+      height: 32px;
+      border: 1px solid var(--line);
+      background: var(--bg-3);
+      border-radius: 6px;
+      color: var(--muted);
+      display: grid;
+      place-items: center;
+      padding: 0;
+    }
+    .harness svg { width: 16px; height: 16px; display: block; }
+    .harness[aria-pressed="true"] {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: #161c0a;
+    }
+    .harness:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+    body[data-state="thinking"] .harness,
+    body[data-state="needs"] .harness,
+    body[data-state="control"] .harness { cursor: not-allowed; }
+    .composer-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    }
+    .composer textarea {
+      flex: 1;
+      resize: none;
+      height: 40px;
+      background: var(--bg-3);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+    .composer textarea:focus { outline: 1px solid var(--accent); border-color: transparent; }
+    .send {
+      height: 40px;
+      padding: 0 14px;
+      border-radius: var(--radius);
+      border: 0;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .send.go { background: var(--ink); color: var(--accent-ink); }
+    .send.stop { background: var(--bg-3); color: var(--ink); border: 1px solid var(--line); }
+    body[data-state="idle"] .send.stop,
+    body[data-state="offline"] .send.stop { display: none; }
+    body[data-state="thinking"] .send.go,
+    body[data-state="needs"] .send.go,
+    body[data-state="control"] .send.go { display: none; }
+    .screen {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: #0a0a0a;
+    }
+    .screen-bar {
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+      color: var(--muted);
+      flex: none;
+    }
+    .screen-bar strong { color: var(--ink); font-weight: 500; }
+    .desk {
+      flex: 1;
+      margin: 10px;
+      background: #2b3340;
+      border: 1px solid #3a4452;
+      position: relative;
+      overflow: hidden;
+      min-height: 0;
+    }
+    body[data-state="control"] .desk { outline: 1px solid var(--accent); }
+    .win {
+      position: absolute;
+      background: #1a1a1a;
+      border: 1px solid #444;
+      font-size: 10px;
+    }
+    .win header {
+      background: #2a2a2a;
+      color: #ccc;
+      padding: 3px 8px;
+      font-size: 10px;
+    }
+    .term {
+      left: 12px; top: 14px; width: 58%; height: 58%;
+      font-family: var(--mono);
+      color: #d6d6d6;
+      padding: 0;
+    }
+    .term pre {
+      margin: 0;
+      padding: 8px;
+      font-size: 9.5px;
+      line-height: 1.35;
+      white-space: pre-wrap;
+    }
+    .chrome {
+      right: 10px; top: 40px; width: 48%; height: 52%;
+      background: #fff;
+      color: #222;
+    }
+    .chrome header { background: #e8e8e8; color: #333; }
+    .chrome .page { padding: 10px 12px; font-size: 11px; }
+    .chrome input {
+      width: 100%;
+      margin: 6px 0;
+      padding: 5px;
+      border: 1px solid #ccc;
+    }
+    .panel {
+      position: absolute;
+      left: 0; right: 0; bottom: 0;
+      height: 28px;
+      background: #1b1f24;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 8px;
+      color: #c8c8c8;
+      font-size: 10px;
+    }
+    .card {
+      position: absolute;
+      left: 12px; right: 12px; bottom: 40px;
+      background: #121212;
+      border: 1px solid var(--line);
+      padding: 12px;
+    }
+    body[data-state="idle"] .card,
+    body[data-state="thinking"] .card,
+    body[data-state="offline"] .card { display: none; }
+    .card h2 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+    .card p { margin: 0 0 12px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+    .row { display: flex; gap: 6px; }
+    .btn {
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      background: var(--bg-3);
+      color: var(--ink);
+    }
+    .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+    .gate {
+      height: 100%;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    body[data-view="onboarding"] .gate { display: flex; }
+    body[data-view="onboarding"] .app.main { display: none; }
+    body[data-view="app"] .gate { display: none; }
+    .box {
+      width: 420px;
+      background: var(--bg-2);
+      border: 1px solid var(--line);
+      padding: 28px 28px 24px;
+    }
+    .box h2 { margin: 0 0 8px; font-size: 18px; font-weight: 600; }
+    .box p { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .box label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+    .box input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      font-family: var(--mono);
+      font-size: 12px;
+      margin-bottom: 14px;
+    }
+    .tweaks {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      max-width: 90vw;
+    }
+    .tweaks button {
+      background: #2a2a2a;
+      color: #ddd;
+      border: 1px solid #444;
+      font-size: 11px;
+      padding: 6px 9px;
+      border-radius: 4px;
+    }
+    .tweaks button[aria-pressed="true"] { background: var(--accent); color: #111; border-color: transparent; }
+    .hint {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      color: #888;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body data-view="app" data-state="needs">
+  <div class="stage" role="application" aria-label="Botbox concept">
+    <div class="titlebar">
+      <span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <h1 id="win-title">Botbox — Researcher</h1>
+    </div>
+
+    <div class="gate">
+      <form class="box" id="onboard" onsubmit="return connect(event)">
+        <h2>Connect to your box</h2>
+        <p>Paste the URL printed by bootstrap. The app stores the token and talks to botd over your tailnet.</p>
+        <label for="url">Connect URL</label>
+        <input id="url" name="url" value="botbox://connect?host=box.tailnet&token=••••••••" />
+        <button class="btn primary" type="submit" style="width:100%;padding:10px">Connect</button>
+      </form>
+    </div>
+
+    <div class="app main">
+      <aside class="sidebar">
+        <div class="mark">Botbox</div>
+        <button class="bot" aria-current="true">
+          <span class="name"><span class="dot live"></span>Researcher</span>
+          <span class="meta" id="bot-meta">thinking</span>
+        </button>
+        <button class="bot">
+          <span class="name"><span class="dot"></span>Ops</span>
+          <span class="meta">idle</span>
+        </button>
+        <div class="grow"></div>
+        <button class="newbot" type="button">+ New bot</button>
+      </aside>
+
+      <section class="chat">
+        <div class="banner">
+          <span>Exit node is offline. This bot cannot use your home IP until your Mac is back on Tailscale.</span>
+          <button type="button">Disable exit node</button>
+        </div>
+        <div class="transcript">
+          <div class="msg user">Install QEMU and boot the Debian cloud image so I can test the installer overnight.</div>
+          <div class="msg bot">
+            <details class="think" open>
+              <summary>Thinking</summary>
+              <p>Need qemu-system-x86 from apt, then a Debian cloud image. GitHub may ask for login if the download hits a private path.</p>
+            </details>
+            <details class="tool-row">
+              <summary>Bash · sudo apt-get install -y qemu-system-x86</summary>
+              <pre>Get:1 qemu-system-x86 1:8.2+dfsg-2
+Setting up qemu-system-x86 ...</pre>
+            </details>
+            <details class="tool-row">
+              <summary>Bash · qemu-system-x86_64 -nographic -hda /workspace/debian.qcow2</summary>
+              <pre>SeaBIOS (version 1.16)
+Booting from Hard Disk...</pre>
+            </details>
+            QEMU is installed. I hit GitHub’s login wall fetching the image.
+            <span class="caret" aria-hidden="true"></span>
+          </div>
+          <div class="compact" id="compact-line">Compacted for Codex</div>
+        </div>
+        <form class="composer" onsubmit="return false">
+          <div class="harnesses" role="group" aria-label="Harness">
+            <button class="harness" type="button" id="h-claude" aria-pressed="true" title="Claude Code" onclick="setHarness('claude-code')">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" fill-rule="nonzero" d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"/></svg>
+            </button>
+            <button class="harness" type="button" id="h-codex" aria-pressed="false" title="Codex" onclick="setHarness('codex')">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9847 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/></svg>
+            </button>
+          </div>
+          <div class="composer-row">
+            <textarea id="composer-input" placeholder="Message Researcher via Claude Code…"></textarea>
+            <button class="send stop" type="button">Stop</button>
+            <button class="send go" type="button">Send</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="screen">
+        <div class="screen-bar">
+          <span><strong>Live screen</strong> · 1280×800 · <span id="mode">viewing</span></span>
+        </div>
+        <div class="desk" aria-label="Bot desktop">
+          <div class="win term">
+            <header>Terminal</header>
+            <pre>bot@researcher:~$ sudo apt-get install -y qemu-system-x86
+Get:1 qemu-system-x86 1:8.2+dfsg-2
+Setting up qemu-system-x86 ...
+bot@researcher:~$ qemu-system-x86_64 -nographic \
+  -hda /workspace/debian.qcow2
+SeaBIOS (version 1.16)
+Booting from Hard Disk...</pre>
+          </div>
+          <div class="win chrome">
+            <header>Chrome — github.com/login</header>
+            <div class="page">
+              Sign in to GitHub
+              <input placeholder="Username or email" />
+              <input placeholder="Password" type="password" />
+            </div>
+          </div>
+          <div class="card">
+            <h2>Needs your attention</h2>
+            <p>Log into GitHub on this bot. The bot is waiting on the sign-in page.</p>
+            <div class="row">
+              <button class="btn primary" type="button" onclick="setState('control')">Take over</button>
+              <button class="btn" type="button" onclick="setState('idle')">I'm done</button>
+              <button class="btn" type="button" onclick="setState('thinking')">Skip</button>
+            </div>
+          </div>
+          <div class="panel">Applications · Terminal · Chrome</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="tweaks" role="group" aria-label="Preview states">
+    <button type="button" onclick="setView('onboarding')" id="t-on">Onboarding</button>
+    <button type="button" onclick="setState('idle')" id="t-idle">Idle</button>
+    <button type="button" onclick="setState('thinking')" id="t-thinking">Thinking</button>
+    <button type="button" onclick="setState('needs')" id="t-needs" aria-pressed="true">Needs attention</button>
+    <button type="button" onclick="setState('control')" id="t-control">You have control</button>
+    <button type="button" onclick="setState('offline')" id="t-offline">Exit node down</button>
+  </div>
+  <div class="hint">Concept only · not the real app</div>
+
+  <script>
+    function setView(v) {
+      document.body.dataset.view = v;
+      document.getElementById("win-title").textContent =
+        v === "onboarding" ? "Botbox" : "Botbox — Researcher";
+      document.getElementById("t-on").setAttribute("aria-pressed", v === "onboarding" ? "true" : "false");
+      if (v === "app") pressState(document.body.dataset.state);
+    }
+    function pressState(s) {
+      ["idle", "thinking", "needs", "control", "offline"].forEach((k) => {
+        document.getElementById("t-" + k).setAttribute("aria-pressed", k === s ? "true" : "false");
+      });
+      document.getElementById("t-on").setAttribute("aria-pressed", "false");
+    }
+    function setState(s) {
+      document.body.dataset.view = "app";
+      document.body.dataset.state = s;
+      document.getElementById("win-title").textContent = "Botbox — Researcher";
+      const meta = { idle: "idle", thinking: "thinking", needs: "needs you", control: "you have control", offline: "exit node down" };
+      document.getElementById("bot-meta").textContent = meta[s];
+      document.getElementById("mode").textContent = s === "control" ? "you have control" : "viewing";
+      const think = document.querySelector(".think");
+      if (think) think.open = s === "thinking" || s === "needs" || s === "control";
+      pressState(s);
+    }
+    function connect(e) {
+      e.preventDefault();
+      setState("needs");
+      return false;
+    }
+    function setHarness(id) {
+      const busy = ["thinking", "needs", "control"].includes(document.body.dataset.state);
+      if (busy) return;
+      const from = document.getElementById("h-claude").getAttribute("aria-pressed") === "true" ? "claude-code" : "codex";
+      if (from === id) return;
+      document.getElementById("h-claude").setAttribute("aria-pressed", id === "claude-code" ? "true" : "false");
+      document.getElementById("h-codex").setAttribute("aria-pressed", id === "codex" ? "true" : "false");
+      const label = id === "codex" ? "Codex" : "Claude Code";
+      document.getElementById("composer-input").placeholder = "Message Researcher via " + label + "…";
+      document.body.dataset.compact = "1";
+      document.getElementById("compact-line").textContent = "Compacted for " + label;
+    }
+  </script>
+</body>
+</html>
