@@ -3,7 +3,7 @@
 - **Date:** 2026-08-14
 - **Status:** done
 - **Branch:** `openbot/m6-files-tabs`
-- **Head SHA:** `12a68ebea5c4b8ee57c5e135dab3436dc5c688b2`
+- **Head SHA:** `3ef1b32bd41cb03a2befa693b730ac239582e51a`
 - **PR:** https://github.com/aadivyaraushan/botbox/pull/11
 - **Worktree:** `/Users/aadivyar/Documents/Startups/grok-bot-clone-wt-m6`
 - **Verdict:** live-ui-verified
@@ -37,3 +37,11 @@ Real-surface (not CI): spawned real `Daemon` (`skipHindsightSpawn: true`) on `12
 - **Laziness Protocol:** minimal FilesPane + list/read helpers; no new abstraction layers
 - **Model the Domain:** ordered path list + read result union (`ok` / `not-found` / `forbidden`)
 - **Prove It Works:** unit + Playwright fake + real-daemon window drive
+
+## CI fix (2026-08-14)
+
+- **Failure:** `app-e2e` / `e2e/app.spec.ts` — `compact-divider` missing ("Context compacted")
+- **Cause:** `createAgent` set `selectedId` before `agent.list` populated the row; history `useEffect` only depended on `selectedId`, so it bailed once and never loaded fixture history
+- **Fix:** re-run selection effect when the selected agent becomes present / history not loaded; also `await loadHistory` after create refresh
+- **Verify:** `playwright test --project=ci e2e/app.spec.ts` + full `--project=ci` (12 passed)
+- **Head SHA:** `3ef1b32bd41cb03a2befa693b730ac239582e51a`
