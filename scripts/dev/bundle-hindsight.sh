@@ -50,6 +50,20 @@ exec "$ROOT/python/bin/hindsight-api" "$@"
 WRAP
 chmod +x "$DEST/bin/hindsight-api"
 
+# Vendor PostgreSQL binaries for offline first start (pg0 / postgresql_embedded).
+# Prefer OPENBOT_PG0_INSTALLATION; else copy from ~/.pg0/installation when present.
+# Local bake without a full rebundle: cp -R ~/.pg0/installation "$DEST/pg0-installation"
+PG0_SRC="${OPENBOT_PG0_INSTALLATION:-$HOME/.pg0/installation}"
+if [ -d "$PG0_SRC" ] && ls -A "$PG0_SRC" >/dev/null 2>&1; then
+  echo "[bundle-hindsight] vendoring PostgreSQL installation from $PG0_SRC"
+  rm -rf "$DEST/pg0-installation"
+  mkdir -p "$DEST/pg0-installation"
+  cp -R "$PG0_SRC"/. "$DEST/pg0-installation/"
+else
+  echo "[bundle-hindsight] WARNING: no PostgreSQL installation at $PG0_SRC" >&2
+  echo "[bundle-hindsight] first start will fail closed (memory-error) until you copy one into pg0-installation/" >&2
+fi
+
 echo "[bundle-hindsight] baking model weights into hf-cache"
 HF_HOME="$DEST/hf-cache" "$DEST/python/bin/python3" <<'PY'
 from sentence_transformers import SentenceTransformer
