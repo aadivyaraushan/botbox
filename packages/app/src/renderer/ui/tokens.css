@@ -127,3 +127,10 @@ input, textarea { font-family: inherit; color: var(--ink); background: var(--bg-
 .tab { display: inline-flex; align-items: center; gap: 6px; }
 .app-shell.has-right-pane { grid-template-columns: 220px 1fr minmax(280px, 36vw); }
 .app-shell.no-right-pane { grid-template-columns: 220px 1fr; }
+
+.files-pane { display: flex; flex-direction: column; min-height: 0; height: 100%; gap: 8px; padding: 8px; }
+.files-search { width: 100%; padding: 6px 8px; }
+.files-list { display: flex; flex-direction: column; gap: 2px; overflow: auto; max-height: 40%; }
+.file-row { text-align: left; padding: 6px 8px; border: none; background: transparent; color: var(--ink); font-size: 12px; font-family: var(--mono); border-radius: var(--radius); }
+.file-row:hover, .file-row.selected { background: var(--bg-3); }
+.files-preview { flex: 1; margin: 0; overflow: auto; padding: 8px; background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); font-family: var(--mono); font-size: 12px; white-space: pre-wrap; }

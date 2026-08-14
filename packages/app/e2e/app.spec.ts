@@ -136,16 +136,12 @@ test.describe('OpenBot M2 app', () => {
     await expect(page.getByTestId('slash-menu')).toBeVisible()
     await expect(page.getByTestId('slash-menu')).not.toContainText('/plan')
 
-    // plus menu disabled Coming later
+    // plus menu: Browser / Terminal / Files enabled (M5+M6)
     await page.getByTestId('plus-menu').getByRole('button', { name: 'Add tab' }).click()
     const plus = page.getByTestId('plus-menu').locator('.plus-menu-list')
     await expect(plus.getByRole('button', { name: 'Terminal' })).toBeEnabled()
     await expect(plus.getByRole('button', { name: 'Browser' })).toBeEnabled()
-    await expect(plus.getByRole('button', { name: 'Files' })).toBeDisabled()
-    await expect(plus.getByRole('button', { name: 'Files' })).toHaveAttribute(
-      'title',
-      'Coming in a later build',
-    )
+    await expect(plus.getByRole('button', { name: 'Files' })).toBeEnabled()
 
     // needs-login path
     await page.getByTestId('new-agent').click()

@@ -13,7 +13,7 @@ export default defineConfig({
   projects: [
     {
       name: 'ci',
-      testIgnore: ['**/login-ax.spec.ts'],
+      testIgnore: ['**/login-ax.spec.ts', '**/files-real-surface.spec.ts'],
     },
     {
       name: 'local-ax',

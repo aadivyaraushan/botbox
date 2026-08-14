@@ -62,7 +62,7 @@ test.describe('OpenBot M5 browser + terminal', () => {
     await page.getByTestId('plus-menu').getByRole('button', { name: 'Add tab' }).click()
     await expect(page.getByTestId('plus-terminal')).toBeEnabled()
     await expect(page.getByTestId('plus-browser')).toBeEnabled()
-    await expect(page.getByTestId('plus-files')).toBeDisabled()
+    await expect(page.getByTestId('plus-files')).toBeEnabled()
     await page.getByTestId('plus-browser').click()
     await expect(page.getByTestId('tab-browser')).toHaveCount(2)
 

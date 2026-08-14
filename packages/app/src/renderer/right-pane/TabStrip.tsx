@@ -1,6 +1,7 @@
 import { PlusMenu } from './PlusMenu'
 import { Chrome } from '../browser/Chrome'
 import { TerminalPane } from '../terminal/TerminalPane'
+import { FilesPane } from '../files/FilesPane'
 
 export type RightTab = {
   id: string
@@ -14,6 +15,7 @@ type Props = {
   activeId: string | null
   agentId: string | null
   held: boolean
+  filesSearchToken?: number
   onSelect: (id: string) => void
   onClose: (id: string) => void
   onPick: (kind: 'browser' | 'terminal' | 'files') => void
@@ -27,6 +29,7 @@ export function TabStrip({
   activeId,
   agentId,
   held,
+  filesSearchToken = 0,
   onSelect,
   onClose,
   onPick,
@@ -66,7 +69,7 @@ export function TabStrip({
             </span>
           </button>
         ))}
-        <PlusMenu onPick={onPick} browserEnabled terminalEnabled />
+        <PlusMenu onPick={onPick} browserEnabled terminalEnabled filesEnabled />
       </div>
       <div className="right-pane-body" data-testid="right-pane-body">
         {active.kind === 'browser' && agentId ? (
@@ -83,7 +86,9 @@ export function TabStrip({
         {active.kind === 'terminal' && agentId ? (
           <TerminalPane agentId={agentId} tabId={active.id} active={active.id === activeId} />
         ) : null}
-        {active.kind === 'files' ? <div className="helper">Coming in a later build</div> : null}
+        {active.kind === 'files' && agentId ? (
+          <FilesPane agentId={agentId} searchFocusToken={filesSearchToken} />
+        ) : null}
       </div>
     </div>
   )

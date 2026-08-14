@@ -825,6 +825,40 @@ wss.on('connection', (ws, req) => {
       return
     }
 
+
+    if (type === 'agent.files') {
+      const agentId = String(msg.agentId)
+      if (!conn.agents.has(agentId)) {
+        reply({ ok: false, error: 'agent-not-found' })
+        return
+      }
+      reply({ ok: true, files: ['role.md', 'MEMORY.md'] })
+      return
+    }
+
+    if (type === 'agent.readFile') {
+      const agentId = String(msg.agentId)
+      if (!conn.agents.has(agentId)) {
+        reply({ ok: false, error: 'agent-not-found' })
+        return
+      }
+      const p = String(msg.path ?? '')
+      if (p.includes('..') || p.startsWith('/') || p.includes('private')) {
+        reply({ ok: false, error: 'forbidden' })
+        return
+      }
+      if (p === 'MEMORY.md') {
+        reply({ ok: true, text: 'hello' })
+        return
+      }
+      if (p === 'role.md') {
+        reply({ ok: true, text: 'You are Ada.' })
+        return
+      }
+      reply({ ok: false, error: 'not-found' })
+      return
+    }
+
     reply({ ok: false, error: 'unknown-type' })
   })
 })
