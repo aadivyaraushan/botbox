@@ -1,8 +1,8 @@
 {
-  "python": "3.11.13",
+  "python": "3.11.15",
   "hindsightAll": "0.9.0",
   "models": ["BAAI/bge-small-en-v1.5", "cross-encoder/ms-marco-MiniLM-L-6-v2"],
-  "pythonStandaloneUrl": "pending-packaging",
-  "pythonStandaloneSha256": "pending-packaging",
-  "treeSha256": "pending-packaging-tree"
+  "pythonStandaloneUrl": "https://github.com/astral-sh/python-build-standalone/releases/download/20260807/cpython-3.11.15+20260807-aarch64-apple-darwin-install_only_stripped.tar.gz",
+  "pythonStandaloneSha256": "76b27e15a5be9539b830fc698e2646d001b84a66500eeb5228cee46909d6f2cf",
+  "treeSha256": "362476cd1b6f966ec7529030220794e2711560619a189df3f0fef32d688b9352"
 }

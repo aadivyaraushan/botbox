@@ -1,0 +1,16 @@
+appId: com.openbot.app
+productName: OpenBot
+mac:
+  target:
+    - dmg
+    - zip
+  identity: null
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  extendInfo:
+    NSAppleEventsUsageDescription: OpenBot needs to control Google Chrome to finish sign-in.
+    NSScreenCaptureUsageDescription: OpenBot needs Screen Recording to finish sign-in in Chrome.
+extraResources:
+  - from: ../../resources/hindsight
+    to: hindsight
+afterPack: scripts/after-pack.cjs
