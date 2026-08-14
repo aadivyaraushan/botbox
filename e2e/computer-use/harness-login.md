@@ -18,12 +18,31 @@ Canonical product steps: `planning/boxbot-local-plan.md` §3.5 login / Allow-cli
 
 ## Preflight (do this first, every time)
 
-1. Screenshot tool: `/usr/sbin/screencapture` (macOS built-in). Probe: `screencapture -t png /tmp/openbot-login-preflight.png`. If macOS shows a Screen Recording permission dialog, that dialog is the **only** sanctioned human ask in this runbook. After the user allows it, retry the probe. Do not skip screenshots.
-2. Click tool: AppleScript System Events. Probe: `osascript -e 'tell application "System Events" to get name of first process'`. If it errors with not authorized, that Accessibility dialog is the same sanctioned human ask (grant to Terminal or Cursor, whichever is running the script). Retry the probe.
-3. Chrome: `osascript -e 'tell application "Google Chrome" to get name'`. If Chrome is not running, `open -a "Google Chrome"` then wait until the name probe succeeds.
-4. Optional unlabeled-click fallback: if `which cliclick` is empty, `brew install cliclick`. Only used when a control has no AppleScript name.
+**Fail closed before any login click.** Run:
 
-If preflight 1–3 fail after the permission dialog, stop and report. Do not Take over. Do not copy credential files.
+```
+node scripts/dev/login-screen-preflight.mjs
+```
+
+That script must exit `0`. It checks, in order:
+
+1. Accessibility: System Events can list processes (needed for AX / `openbot-axclick`).
+2. Google Chrome has an on-screen window.
+3. **Screen Recording captures that Chrome window** via `screencapture -l <CGWindowID>` → `/tmp/openbot-login-preflight-window.png`. Display-only capture that shows wallpaper while Chrome exists is a **fail** (exit `2`), not a reason to hand the human the OpenAI page.
+4. Auth URL open shape is `open -a "Google Chrome" -- <url>` (enforced by `login.mjs` when it opens the challenge).
+
+| Exit | Meaning | Only sanctioned human ask |
+|------|---------|---------------------------|
+| `2` | Screen Recording miss | System Settings → Privacy & Security → **Screen Recording** → enable **Cursor** (`com.todesktop.230313mzl4w4u92`) |
+| `3` | Accessibility miss | System Settings → Privacy & Security → **Accessibility** → enable **Cursor** |
+| `4` | No Chrome window | Open Chrome, then retry (not a human OpenAI click) |
+| `5` | Wrong open command | Agent bug; fix to `open -a "Google Chrome" -- <url>` |
+
+`scripts/dev/login.mjs` runs the same preflight before `harness.startLogin` on macOS.
+
+**Forbidden escalation:** do **not** tell the human to finish login / click Allow in Chrome when preflight fails or when `/tmp/openbot-login.png` is wallpaper-only.
+
+Optional unlabeled-click fallback: if `which cliclick` is empty, `brew install cliclick`. Prefer `openbot-axclick` (product path).
 
 ## Algorithm
 
