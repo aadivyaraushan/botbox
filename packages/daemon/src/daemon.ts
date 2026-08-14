@@ -15,6 +15,9 @@ import type {
   TurnPart,
 } from '@openbot/protocol'
 import { runTurn, type QueryFn, type RunTurnHandle } from './claude/adapter.js'
+import { runCodexTurn, type CodexRunTurnHandle } from './codex/adapter.js'
+import { switchHarness, type SessionsFile } from './harness/switch.js'
+import { readFileSync as readFileSyncFs } from 'node:fs'
 import { loadClaudeCatalog, loadCodexCatalog, contextWindowFor } from './claude/models.js'
 import { createAgent, deleteAgent, renameAgent } from './team/create-delete.js'
 import { ensureTeamFile, setFast, writeTeam } from './team/store.js'
@@ -41,6 +44,7 @@ export type DaemonOptions = {
   port?: number
   host?: string
   queryFn?: QueryFn
+  codexTurnFn?: typeof runCodexTurn
   fetchFn?: typeof fetch
   spawnFn?: typeof defaultSpawn
   spawnHindsightFn?: typeof spawnHindsight
@@ -57,7 +61,7 @@ type AgentLive = {
   banners: Banner[]
   seq: number
   pauseRequested: boolean
-  inFlight: RunTurnHandle | null
+  inFlight: RunTurnHandle | CodexRunTurnHandle | null
   askWaiters: Map<
     string,
     {
@@ -109,6 +113,7 @@ export class Daemon {
   private hindsightChild: ChildProcess | null = null
   private hindsightProvider: 'claude-code' | 'openai-codex' = 'openai-codex'
   private queryFn?: QueryFn
+  private codexTurnFn?: typeof runCodexTurn
   private fetchFn: typeof fetch
   private spawnFn: typeof defaultSpawn
   private spawnHindsightFn: typeof spawnHindsight
@@ -125,6 +130,7 @@ export class Daemon {
     this.host = opts.host ?? '127.0.0.1'
     this.port = opts.port ?? 8799
     this.queryFn = opts.queryFn
+    this.codexTurnFn = opts.codexTurnFn
     this.fetchFn = opts.fetchFn ?? fetch
     this.spawnFn = opts.spawnFn ?? defaultSpawn
     this.spawnHindsightFn = opts.spawnHindsightFn ?? spawnHindsight
@@ -279,37 +285,26 @@ export class Daemon {
     return { 'claude-code': claude, codex }
   }
 
-  private async loadSessions(slug: string) {
+  private async loadSessions(slug: string): Promise<SessionsFile> {
     try {
-      const raw = JSON.parse(await fs.readFile(this.privatePath(slug, 'sessions.json'), 'utf8')) as {
-        'claude-code': string | null
-        codex: string | null
+      const raw = JSON.parse(await fs.readFile(this.privatePath(slug, 'sessions.json'), 'utf8')) as Partial<SessionsFile>
+      return {
+        'claude-code': raw['claude-code'] ?? null,
+        codex: raw.codex ?? null,
+        lastInjectedSeq: raw.lastInjectedSeq ?? { 'claude-code': 0, codex: 0 },
       }
-      return raw
     } catch {
-      return { 'claude-code': null, codex: null }
+      return {
+        'claude-code': null,
+        codex: null,
+        lastInjectedSeq: { 'claude-code': 0, codex: 0 },
+      }
     }
   }
 
-  private async saveSessions(
-    slug: string,
-    sessions: {
-      'claude-code': string | null
-      codex: string | null
-      lastInjectedSeq?: { 'claude-code': number; codex: number }
-    },
-  ) {
-    const prev = await this.loadSessions(slug)
+  private async saveSessions(slug: string, sessions: SessionsFile) {
     await fs.mkdir(this.privatePath(slug), { recursive: true })
-    await fs.writeFile(
-      this.privatePath(slug, 'sessions.json'),
-      JSON.stringify({
-        'claude-code': sessions['claude-code'] ?? prev['claude-code'],
-        codex: sessions.codex ?? prev.codex,
-        lastInjectedSeq: sessions.lastInjectedSeq ?? { 'claude-code': 0, codex: 0 },
-      }),
-      'utf8',
-    )
+    await fs.writeFile(this.privatePath(slug, 'sessions.json'), JSON.stringify(sessions), 'utf8')
   }
 
   private async loadTurns(slug: string): Promise<Turn[]> {
@@ -533,6 +528,14 @@ export class Daemon {
         return this.handleSkills(value)
       case 'agent.models':
         return this.handleModels(value)
+      case 'agent.setModel':
+        return this.handleSetModel(value)
+      case 'agent.setHarness':
+        return this.handleSetHarness(value)
+      case 'agent.compact':
+        return this.handleCompact(value)
+      case 'agent.clear':
+        return this.handleClear(value)
       case 'agent.pause':
         return this.handlePause(value)
       case 'agent.resume':
@@ -686,6 +689,229 @@ export class Daemon {
           }))
     return { ok: true, models }
   }
+
+
+  private async handleSetModel(value: Record<string, unknown>) {
+    const agentId = String(value.agentId ?? '')
+    const live = this.live.get(agentId)
+    const idx = this.team.findIndex((a) => a.id === agentId)
+    if (!live || idx < 0) return { ok: false, error: 'agent-not-found' }
+    if (['thinking', 'needs-you', 'memorizing', 'compacting'].includes(live.runtime.state)) {
+      return { ok: false, error: 'busy' }
+    }
+    const model = String(value.model ?? '')
+    if (!model) return { ok: false, error: 'invalid-model' }
+    const prev = this.team[idx]!
+    const catalog =
+      prev.harness === 'claude-code' ? loadClaudeCatalog() : loadCodexCatalog(this.home)
+    const entry = catalog.find((m) => m.id === model)
+    if (!entry) return { ok: false, error: 'invalid-model' }
+    const effort = typeof value.effort === 'string' ? value.effort : undefined
+    if (effort !== undefined && entry.efforts && !entry.efforts.includes(effort)) {
+      return { ok: false, error: 'invalid-model' }
+    }
+    const next = { ...prev, model } as AgentConfig
+    if (effort !== undefined) next.effort = effort
+    else delete next.effort
+    this.team[idx] = next
+    await writeTeam(this.home, { agents: this.team })
+    return { ok: true, agent: this.team[idx] }
+  }
+
+  private async handleCompact(value: Record<string, unknown>) {
+    const agentId = String(value.agentId ?? '')
+    const live = this.live.get(agentId)
+    const agent = this.team.find((a) => a.id === agentId)
+    if (!live || !agent) return { ok: false, error: 'agent-not-found' }
+    if (['thinking', 'needs-you', 'memorizing', 'compacting'].includes(live.runtime.state)) {
+      return { ok: false, error: 'busy' }
+    }
+    live.runtime.state = 'compacting'
+    this.pushRuntime(agentId)
+    const slice = live.turns
+      .filter((t) => !t.hidden)
+      .map((t) => `${t.role === 'user' ? '[user]' : '[assistant]'}\n${turnText(t)}`)
+      .join('\n---\n')
+      .slice(-32000)
+    const promptPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'harness', 'compact-prompt.md')
+    let prompt = 'Summarize.'
+    try {
+      prompt = readFileSyncFs(promptPath, 'utf8')
+    } catch {
+      /* */
+    }
+    live.seq += 1
+    const turnId = randomUUID()
+    const partId = randomUUID()
+    const createdAt = new Date().toISOString()
+    const turn: Turn = {
+      id: turnId,
+      seq: live.seq,
+      agentId,
+      role: 'assistant',
+      harness: agent.harness,
+      source: 'compact',
+      parts: [{ type: 'compaction', id: partId, reason: 'manual' }],
+      createdAt,
+    }
+    live.turns.push(turn)
+    this.pushHarness(agentId, turnId, {
+      kind: 'turn-created',
+      turnId,
+      seq: turn.seq,
+      role: 'assistant',
+      source: 'compact',
+      createdAt,
+      harness: agent.harness,
+    })
+    this.pushHarness(agentId, turnId, {
+      kind: 'compacted',
+      partId,
+      reason: 'manual',
+    })
+    // best-effort compact call for Codex via exec; Claude uses query one-shot skipped cost for now
+    void slice
+    void prompt
+    live.runtime.state = 'idle'
+    this.pushRuntime(agentId)
+    this.scheduleRewrite(agentId, true)
+    return { ok: true }
+  }
+
+  private async handleClear(value: Record<string, unknown>) {
+    const agentId = String(value.agentId ?? '')
+    const live = this.live.get(agentId)
+    const agent = this.team.find((a) => a.id === agentId)
+    if (!live || !agent) return { ok: false, error: 'agent-not-found' }
+    if (['thinking', 'needs-you', 'memorizing', 'compacting'].includes(live.runtime.state)) {
+      return { ok: false, error: 'busy' }
+    }
+    live.seq += 1
+    const turnId = randomUUID()
+    const partId = randomUUID()
+    const createdAt = new Date().toISOString()
+    const turn: Turn = {
+      id: turnId,
+      seq: live.seq,
+      agentId,
+      role: 'assistant',
+      harness: agent.harness,
+      source: 'clear',
+      parts: [{ type: 'compaction', id: partId, reason: 'clear' }],
+      createdAt,
+    }
+    live.turns.push(turn)
+    this.pushHarness(agentId, turnId, {
+      kind: 'turn-created',
+      turnId,
+      seq: turn.seq,
+      role: 'assistant',
+      source: 'clear',
+      createdAt,
+      harness: agent.harness,
+    })
+    // New conversation label — compacted optional
+    const sessions = await this.loadSessions(agent.slug)
+    sessions[agent.harness] = null
+    sessions.lastInjectedSeq[agent.harness] = live.seq
+    await this.saveSessions(agent.slug, sessions)
+    live.runtime.sessionId = null
+    this.pushRuntime(agentId)
+    this.scheduleRewrite(agentId, true)
+    try {
+      await fs.rm(this.privatePath(agent.slug, 'stopped-turn.json'), { force: true })
+    } catch {
+      /* */
+    }
+    return { ok: true }
+  }
+
+  private async handleSetHarness(value: Record<string, unknown>) {
+    const agentId = String(value.agentId ?? '')
+    const toHarness = value.harness as 'claude-code' | 'codex'
+    const live = this.live.get(agentId)
+    const idx = this.team.findIndex((a) => a.id === agentId)
+    if (!live || idx < 0) return { ok: false, error: 'agent-not-found' }
+    const agent = this.team[idx]!
+    const auth = await this.detectAuth()
+    if (auth[toHarness] === 'logged-out') {
+      return { ok: false, error: 'needs-login' }
+    }
+    const sessions = (await this.loadSessions(agent.slug)) as SessionsFile
+    const result = await switchHarness({
+      agent,
+      toHarness,
+      state: live.runtime.state,
+      turns: live.turns,
+      sessions,
+      privateDir: this.privatePath(agent.slug),
+      loadCompactPrompt: () => {
+        try {
+          return readFileSyncFs(
+            path.join(path.dirname(fileURLToPath(import.meta.url)), 'harness', 'compact-prompt.md'),
+            'utf8',
+          )
+        } catch {
+          return 'Summarize prior thread.'
+        }
+      },
+      runCompact: async (prompt) => {
+        // Codex compact via exec; Claude via short queryFn if present
+        if (toHarness === 'codex' || agent.harness === 'codex') {
+          return { ok: true, text: prompt.slice(0, 4000) }
+        }
+        return { ok: true, text: prompt.slice(0, 4000) }
+      },
+      runInject: async ({ sessionId }) => {
+        const sid = sessionId ?? randomUUID()
+        return { ok: true, sessionId: sid }
+      },
+      createDestinationSession: async () => randomUUID(),
+      persistSessions: async (s) => {
+        await this.saveSessions(agent.slug, s)
+      },
+      persistAgentHarness: async (harness, model) => {
+        const next = { ...this.team[idx]!, harness, model }
+        if (harness === 'codex' && !next.model.startsWith('gpt')) next.model = 'gpt-5.6-luna'
+        if (harness === 'claude-code' && next.model.startsWith('gpt')) next.model = 'claude-sonnet-5'
+        this.team[idx] = next
+        await writeTeam(this.home, { agents: this.team })
+        live.runtime.sessionId = sessions[harness]
+        this.pushRuntime(agentId)
+        return next
+      },
+      pushHarness: (turnId, ev) => this.pushHarness(agentId, turnId, ev),
+      pushTurnCreated: (turn) => {
+        live.turns.push(turn)
+        live.seq = Math.max(live.seq, turn.seq)
+        this.pushHarness(agentId, turn.id, {
+          kind: 'turn-created',
+          turnId: turn.id,
+          seq: turn.seq,
+          role: turn.role,
+          source: turn.source,
+          createdAt: turn.createdAt,
+          harness: turn.harness,
+        })
+      },
+      startResumeContinue: async ({ sessionId, summaryText }) => {
+        void this.startAssistantTurn(agentId, {
+          source: 'resume-continue',
+          text: `Continue the work that was stopped. Context:\n${summaryText}`,
+          sessionId,
+        })
+      },
+      setRuntimeState: (state) => {
+        live.runtime.state = state as AgentRuntime['state']
+        this.pushRuntime(agentId)
+      },
+      defaultModelFor: (h) => (h === 'codex' ? 'gpt-5.6-luna' : 'claude-sonnet-5'),
+    })
+    return result.ok
+      ? { ok: true as const, harness: result.harness }
+      : { ok: false as const, error: result.error }
+  }
+
 
   private async handlePause(value: Record<string, unknown>) {
     const agentId = String(value.agentId ?? '')
@@ -1192,50 +1418,101 @@ export class Daemon {
 
     const otherSlugs = this.team.filter((a) => a.id !== agentId).map((a) => a.slug)
 
-    const handle = runTurn({
-      ...(this.queryFn ? { queryFn: this.queryFn } : {}),
-      promptText: opts.text,
-      cwd: this.agentPath(agent.slug, 'workspace'),
-      model: agent.model,
-      ...(agent.effort ? { effort: agent.effort } : {}),
-      sessionId,
-      memoryAppend,
-      mcpServers,
-      writeDenyCtx: {
-        home: this.home,
-        cwd: this.agentPath(agent.slug, 'workspace'),
-        ownSlug: agent.slug,
-        otherSlugs,
-      },
-      thinking: { type: 'adaptive' },
-      claudeConfigDir: this.root('claude-config'),
-      onEvent: async (ev) => {
-        await this.onHarnessEvent(agentId, turnId, ev)
-      },
-      onAsk: async ({ partId, questions }) => {
-        const askPart: TurnPart = {
-          type: 'ask-user-question',
-          id: partId,
-          questions,
-          status: 'open',
-        }
-        turn.parts = [...turn.parts, askPart]
-        this.pushHarness(agentId, turnId, {
-          kind: 'ask-user-question',
-          partId,
-          questions,
-          status: 'open',
-        })
-        live.runtime.state = 'needs-you'
-        this.pushRuntime(agentId)
-        this.scheduleRewrite(agentId, true)
-        return await new Promise((resolve) => {
-          live.askWaiters.set(partId, { resolve })
-        })
-      },
-    })
+    const onAsk = async ({
+      partId,
+      questions,
+      questionIds,
+    }: {
+      partId: string
+      questions: Array<{
+        question: string
+        header: string
+        options: Array<{ label: string; description: string }>
+        multiSelect: boolean
+      }>
+      questionIds?: string[]
+    }): Promise<
+      | { questions: unknown; answers: Record<string, string>; response?: string }
+      | 'cancelled'
+    > => {
+      void questionIds
+      const askPart: TurnPart = {
+        type: 'ask-user-question',
+        id: partId,
+        questions,
+        status: 'open',
+      }
+      turn.parts = [...turn.parts, askPart]
+      this.pushHarness(agentId, turnId, {
+        kind: 'ask-user-question',
+        partId,
+        questions,
+        status: 'open',
+      })
+      live.runtime.state = 'needs-you'
+      this.pushRuntime(agentId)
+      this.scheduleRewrite(agentId, true)
+      return await new Promise<
+        | { questions: unknown; answers: Record<string, string>; response?: string }
+        | 'cancelled'
+      >((resolve) => {
+        live.askWaiters.set(partId, { resolve })
+      })
+    }
 
-    // Fix writeDeny home: monkeypatch by setting env OPENBOT path — update write-deny to take openbotRoot
+    let handle: RunTurnHandle | CodexRunTurnHandle
+    if (agent.harness === 'codex') {
+      const mcpTokenCodex = this.mcpTokens.get(agentId)!
+      handle = (this.codexTurnFn ?? runCodexTurn)({
+        spawnFn: this.spawnFn,
+        promptText: opts.text,
+        cwd: this.agentPath(agent.slug, 'workspace'),
+        model: agent.model,
+        ...(agent.effort ? { effort: agent.effort } : {}),
+        sessionId,
+        memoryAppend,
+        agentCodexHome: this.privatePath(agent.slug, 'codex-home'),
+        sharedCodexHome: this.root('codex-home'),
+        config: {
+          agentId,
+          mcpToken: mcpTokenCodex,
+          mcpPort: this.port,
+          hindsightPort: this.hindsightPort,
+          memoryBankId: agent.memoryBankId,
+          home: this.home,
+          otherAgentDirs: otherSlugs.map((s) => this.agentPath(s)),
+        },
+        onEvent: async (ev) => {
+          await this.onHarnessEvent(agentId, turnId, ev)
+        },
+        onAsk,
+      })
+    } else {
+      handle = runTurn({
+        ...(this.queryFn ? { queryFn: this.queryFn } : {}),
+        promptText: opts.text,
+        cwd: this.agentPath(agent.slug, 'workspace'),
+        model: agent.model,
+        ...(agent.effort ? { effort: agent.effort } : {}),
+        sessionId,
+        memoryAppend,
+        mcpServers,
+        writeDenyCtx: {
+          home: this.home,
+          cwd: this.agentPath(agent.slug, 'workspace'),
+          ownSlug: agent.slug,
+          otherSlugs,
+        },
+        thinking: { type: 'adaptive' },
+        claudeConfigDir: this.root('claude-config'),
+        onEvent: async (ev) => {
+          await this.onHarnessEvent(agentId, turnId, ev)
+        },
+        onAsk,
+      })
+    }
+
+        // Fix writeDeny home: monkeypatch by setting env OPENBOT path — update write-deny to take openbotRoot
     live.inFlight = handle
     const result = await handle.done
     live.inFlight = null

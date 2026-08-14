@@ -1,0 +1,26 @@
+{
+  "threadId": "01a000fb-cd40-7b10-b41f-7d89f23d6e16",
+  "turnId": "01a000fb-cd7f-7413-8731-3664ba990fe9",
+  "itemId": "call_IEz2xXFjRwjPTdl6TSpXw9yL",
+  "questions": [
+    {
+      "id": "color",
+      "header": "Color",
+      "question": "Pick a color path?",
+      "isOther": true,
+      "isSecret": false,
+      "options": [
+        {
+          "label": "Alpha",
+          "description": "choose alpha"
+        },
+        {
+          "label": "Beta",
+          "description": "choose beta"
+        }
+      ]
+    }
+  ],
+  "isBlocking": false,
+  "autoResolutionMs": null
+}

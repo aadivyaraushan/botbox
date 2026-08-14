@@ -29,5 +29,8 @@
     "tsx": "4.23.12",
     "typescript": "^5.8.0",
     "vitest": "^3.2.4"
+  },
+  "openbot": {
+    "codexCli": "0.147.0"
   }
 }
