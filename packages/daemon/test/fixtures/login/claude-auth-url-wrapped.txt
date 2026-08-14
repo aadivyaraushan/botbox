@@ -1,0 +1,2 @@
+If the browser didn't open, visit: https://claude.com/cai/oauth/authorize?code=true&
+client_id=abc&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&scope=x&code_challenge=y&code_challenge_method=S256&state=z
