@@ -69,6 +69,7 @@ describe('codex config.toml', () => {
     expect(toml).not.toMatch(/writable_roots/)
     expect(toml).not.toContain('homeDir')
     assertNoHomeDirWritableRoots(toml)
+    expect(toml).toContain(JSON.stringify(path.join(os.homedir(), '.pg0')))
     expect(buildCodexConfigToml({
       agentId: 'a',
       mcpToken: 't',

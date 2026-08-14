@@ -13,11 +13,15 @@ if (!token || !home) {
   process.exit(1)
 }
 
+const skipHindsightSpawn = process.env.OPENBOT_SKIP_HINDSIGHT === '1'
+const resourcePath = process.env.OPENBOT_HINDSIGHT_ROOT
+
 const daemon = new Daemon({
   home,
   adminToken: token,
   port,
-  skipHindsightSpawn: true,
+  skipHindsightSpawn,
+  ...(resourcePath ? { resourcePath } : {}),
 })
 const { port: bound } = await daemon.start()
 console.error(`[daemon] listening 127.0.0.1:${bound}`)
