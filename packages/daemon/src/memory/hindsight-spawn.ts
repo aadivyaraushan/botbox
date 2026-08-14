@@ -27,6 +27,34 @@ async function portFree(port: number): Promise<boolean> {
   })
 }
 
+function installationHasVersion(dir: string): boolean {
+  if (!fs.existsSync(dir)) return false
+  try {
+    return fs.readdirSync(dir).some((name) => {
+      const full = path.join(dir, name)
+      try {
+        return fs.statSync(full).isDirectory()
+      } catch {
+        return false
+      }
+    })
+  } catch {
+    return false
+  }
+}
+
+/** Copy bundled PostgreSQL binaries into the remapped HOME/.pg0/installation. */
+export function seedPg0Installation(resourceRoot: string, dataRoot: string): boolean {
+  const src = path.join(resourceRoot, 'pg0-installation')
+  const dest = path.join(dataRoot, '.pg0', 'installation')
+  if (!installationHasVersion(src)) return false
+  fs.mkdirSync(path.dirname(dest), { recursive: true })
+  if (!installationHasVersion(dest)) {
+    fs.cpSync(src, dest, { recursive: true })
+  }
+  return installationHasVersion(dest)
+}
+
 export async function spawnHindsight(args: SpawnHindsightArgs): Promise<SpawnHindsightResult> {
   const spawnFn = args.spawnFn ?? defaultSpawn
   const root = args.resourcePath ?? path.join(args.home, 'hindsight')
@@ -38,6 +66,11 @@ export async function spawnHindsight(args: SpawnHindsightArgs): Promise<SpawnHin
 
   const dataRoot = path.join(args.home, 'hindsight', 'data')
   fs.mkdirSync(dataRoot, { recursive: true })
+
+  if (!seedPg0Installation(root, dataRoot)) {
+    console.error('[memory] hindsight-pg-missing')
+    return { ok: false, reason: 'missing', port: args.port }
+  }
 
   let port = args.port
   if (!(await portFree(port))) {
@@ -55,6 +88,7 @@ export async function spawnHindsight(args: SpawnHindsightArgs): Promise<SpawnHin
   const hfHome = path.join(root, 'hf-cache')
   const env: NodeJS.ProcessEnv = {
     ...process.env,
+    HOME: dataRoot,
     HF_HOME: hfHome,
     HF_HUB_OFFLINE: '1',
     TRANSFORMERS_OFFLINE: '1',
@@ -63,8 +97,9 @@ export async function spawnHindsight(args: SpawnHindsightArgs): Promise<SpawnHin
     HINDSIGHT_API_LLM_PROVIDER: provider,
     HINDSIGHT_API_LLM_MODEL: model,
     HINDSIGHT_API_EMBEDDINGS_PROVIDER: 'local',
+    HINDSIGHT_API_DATABASE_URL: 'pg0://hindsight',
     CLAUDE_CONFIG_DIR: path.join(args.home, 'claude-config'),
-    CODEX_HOME: path.join(args.home, 'hindsight', 'codex'),
+    CODEX_HOME: path.join(args.home, 'codex-home'),
   }
 
   const child = spawnFn(entry, ['--host', '127.0.0.1', '--port', String(port)], {

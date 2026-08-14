@@ -46,6 +46,7 @@ export function buildCodexConfigToml(input: CodexConfigInput): string {
     path.join(home, 'hindsight'),
     path.join(home, 'team.json'),
     path.join(home, 'login-url'),
+    path.join(os.homedir(), '.pg0'),
   ]) {
     lines.push(`${tomlKey(d)} = "deny"`)
   }

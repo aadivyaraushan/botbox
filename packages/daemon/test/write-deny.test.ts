@@ -107,4 +107,11 @@ describe('write-deny', () => {
     const r = writeDeny('Bash', { command: 'true && echo x >> ../../bea/MEMORY.md' }, ctx) as DenyHookOut
     expect(r.hookSpecificOutput?.permissionDecision).toBe('deny')
   })
+
+  it('denies Write under os.homedir()/.pg0 leftover path', () => {
+    const leftover = path.join(os.homedir(), '.pg0', 'instances', 'hindsight', 'data')
+    const r = writeDeny('Write', { file_path: leftover }, ctx) as DenyHookOut
+    expect(r.hookSpecificOutput?.permissionDecision).toBe('deny')
+    expect(r.hookSpecificOutput?.permissionDecisionReason).toBe('Cannot read OpenBot private files.')
+  })
 })
