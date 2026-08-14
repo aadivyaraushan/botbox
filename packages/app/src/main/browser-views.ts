@@ -3,7 +3,6 @@ import {
   BrowserWindow,
   WebContentsView,
   session,
-  type WebContents,
 } from 'electron'
 import { join } from 'node:path'
 import { appendFileSync, mkdirSync } from 'node:fs'
@@ -127,13 +126,9 @@ export class BrowserViewManager {
       this.appendHistory(entry.slug, url, entry.title)
       this.onTabMeta?.(entry.tabId, { url, title: entry.title })
     })
-    // before-mouse-event: click takes control
-    ;(wc as WebContents & { on: (ev: string, cb: (e: { type: string }) => void) => void }).on(
-      'before-mouse-event',
-      (e) => {
-        if (e.type === 'mouseDown') this.onHumanControl?.(entry.agentId)
-      },
-    )
+    wc.on('before-mouse-event', (_e, mouse) => {
+      if (mouse.type === 'mouseDown') this.onHumanControl?.(entry.agentId)
+    })
   }
 
   private appendHistory(slug: string, url: string, title: string) {
