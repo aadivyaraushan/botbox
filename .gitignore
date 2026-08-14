@@ -1,3 +1,8 @@
-.cursor/
+node_modules/
+dist/
+.env
+*.local
+coverage/
+*.tsbuildinfo
 .DS_Store
-saved-results/botbox-velocity-cuts-2026-08-13.md
+.cursor/
