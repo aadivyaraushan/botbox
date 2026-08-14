@@ -1583,6 +1583,7 @@ Tests **before** implementation for each slice. After each slice that has a scre
 7. After first successful package: measure app size and write `saved-results/openbot-app-size-YYYY-MM-DD.md` (keep full Hindsight — **no size cap**).
 8. Tests: **ad-hoc signed** app E2E for login Allow-click (real helper); deny-permission path still covered. CI does **not** run this (local-only).
 9. Real-surface: launch the **ad-hoc signed** packaged app, complete one harness login Allow-click end-to-end **after** re-grant.
+10. **Composed package proof (G3 / M7 input):** one `OpenBot.app` must contain **both** real Hindsight (`Contents/Resources/hindsight` ~2GB class, not a 4KB stub) **and** live daemon (`Contents/Resources/daemon/main.mjs`). Drive with `node packages/app/scripts/composed-packaged-drive.mjs` (no `OPENBOT_DAEMON_WS`). That script **fails closed** if `resources/hindsight/bin/hindsight-api` is missing or the tree is under 100MB — it **never** writes a stub. Keep `packaged-daemon-drive.mjs` for daemon-only gap work (may stub); do **not** use it as the composed proof. Size note: `saved-results/openbot-app-size-YYYY-MM-DD.md`. Allow-click login remains an open M2b item (human Screen Recording re-grant); do not claim it closed from this step.
 
 **`packages/app/electron-builder.yml` (complete body):**
 
