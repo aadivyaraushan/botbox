@@ -4,13 +4,16 @@ import {
   ipcMain,
   dialog,
   Notification,
+  safeStorage,
 } from 'electron'
 import { TerminalPtyManager } from './terminal-pty'
 import { BrowserViewManager } from './browser-views'
 import { join } from 'node:path'
 import { mkdirSync } from 'node:fs'
+import { resolveDaemonSpawn } from './daemon-spawn'
+import { loadOrCreateAdminToken } from './admin-token'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { randomBytes, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { WebSocket } from 'ws'
 import { encodeFrame, decodeFrame } from '@openbot/daemon/wire'
 import { isAppleSilicon } from './arch'
@@ -100,11 +103,21 @@ async function daemonRequest(body: Record<string, unknown>): Promise<Record<stri
 }
 
 function spawnDaemon(adminToken: string): void {
-  const root = repoRoot()
-  const tsx = join(root, 'node_modules/.bin/tsx')
-  const main = join(root, 'packages/daemon/src/main.ts')
-  daemonChild = spawn(tsx, [main], {
-    env: { ...process.env, OPENBOT_ADMIN_TOKEN: adminToken },
+  const spec = resolveDaemonSpawn({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    repoRoot: repoRoot(),
+    execPath: process.execPath,
+    adminToken,
+    env: process.env,
+  })
+  console.log('[app] spawn-daemon', {
+    isPackaged: app.isPackaged,
+    command: spec.command,
+    args: spec.args,
+  })
+  daemonChild = spawn(spec.command, spec.args, {
+    env: spec.env,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   daemonChild.stdout?.on('data', (d) => console.log('[daemon]', String(d).trimEnd()))
@@ -302,7 +315,12 @@ void app.whenReady().then(() => {
   if (e2eWs) {
     connectDaemon(e2eWs)
   } else {
-    const token = process.env.OPENBOT_ADMIN_TOKEN ?? randomBytes(32).toString('hex')
+    const token =
+      process.env.OPENBOT_ADMIN_TOKEN ??
+      loadOrCreateAdminToken({
+        userDataPath: app.getPath('userData'),
+        safeStorage,
+      })
     process.env.OPENBOT_ADMIN_TOKEN = token
     spawnDaemon(token)
   }

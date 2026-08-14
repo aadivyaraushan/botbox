@@ -35,6 +35,11 @@ ok "hindsight/bin/hindsight-api"
 [ -d "$APP/Contents/Resources/hindsight/hf-cache" ] || fail "missing hindsight/hf-cache"
 ok "hindsight python + hf-cache"
 
+DAEMON_ENTRY="$APP/Contents/Resources/daemon/main.mjs"
+[ -f "$DAEMON_ENTRY" ] || fail "missing Resources/daemon/main.mjs"
+ok "daemon/main.mjs"
+
+
 # No App Sandbox entitlement expected in entitlements source; refuse sandbox string in signed entitlements if present
 if codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q 'app-sandbox'; then
   fail "App Sandbox entitlement present"

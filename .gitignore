@@ -11,3 +11,4 @@ packages/app/test-results/
 packages/app/playwright-report/
 packages/app/dist/
 resources/hindsight/
+resources/daemon/

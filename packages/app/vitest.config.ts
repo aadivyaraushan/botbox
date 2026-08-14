@@ -4,6 +4,8 @@ export default defineConfig({
   test: {
     include: [
       'src/main/arch.test.ts',
+      'src/main/admin-token.test.ts',
+      'src/main/daemon-spawn.test.ts',
       'src/main/tray-notify.test.ts',
       'src/renderer/thread-ask/ask-answers.test.ts',
       'src/renderer/thread-peer/peer-marker.test.ts',

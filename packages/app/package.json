@@ -7,12 +7,13 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "package": "electron-builder --config electron-builder.yml",
+    "package": "node ../../scripts/dev/bundle-daemon.mjs && electron-builder --config electron-builder.yml",
     "dist": "pnpm build && pnpm package",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
-    "postinstall": "electron-rebuild -f -w node-pty"
+    "postinstall": "electron-rebuild -f -w node-pty",
+    "bundle:daemon": "node ../../scripts/dev/bundle-daemon.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",
@@ -36,6 +37,7 @@
     "electron-builder": "26.15.7",
     "electron-vite": "5.0.0",
     "typescript": "^5.8.0",
-    "vitest": "3.2.4"
+    "vitest": "3.2.4",
+    "esbuild": "0.25.12"
   }
 }
