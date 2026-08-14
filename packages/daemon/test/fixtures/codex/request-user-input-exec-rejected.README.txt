@@ -1,0 +1,2 @@
+stderr ERROR: request_user_input is not supported in exec mode for thread `…`
+stdout still completed turn with agent_message DONE (tool rejected server-side)
