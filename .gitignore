@@ -9,3 +9,5 @@ coverage/
 packages/app/out/
 packages/app/test-results/
 packages/app/playwright-report/
+packages/app/dist/
+resources/hindsight/
