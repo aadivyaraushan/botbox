@@ -1,6 +1,7 @@
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { waitForAgentName } from './helpers'
 
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -26,6 +27,7 @@ async function lastAskAnswer(): Promise<Record<string, unknown> | null> {
 }
 
 async function selectAda(page: Page) {
+  await waitForAgentName(page, 'Ada')
   await page.getByTestId('agent-name').filter({ hasText: 'Ada' }).click()
   await expect(page.getByTestId('ask-card')).toBeVisible()
 }

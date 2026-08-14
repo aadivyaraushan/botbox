@@ -9,6 +9,7 @@ import { emptyTurn, foldTurnEvent, type FoldTurn } from './thread/fold/fold-turn
 import { HarnessSwitcher } from './ui/HarnessSwitcher'
 import { TabStrip, type RightTab } from './right-pane/TabStrip'
 import { PlusMenu } from './right-pane/PlusMenu'
+import { refreshAgentsList } from './daemon-list-sync'
 
 type AgentConfig = {
   id: string
@@ -257,6 +258,12 @@ export function App() {
               : emptyTurn(turnId)
           if (event.kind === 'turn-created') {
             base = foldTurnEvent(base, event)
+            if (event.role === 'user' && event.text) {
+              const busy = ['thinking', 'needs-you', 'memorizing', 'compacting'].includes(
+                cur.runtime.state,
+              )
+              if (busy) base = { ...base, queued: true }
+            }
           } else if (event.kind === 'turn-finished') {
             base = foldTurnEvent(base, event)
           } else {
@@ -292,8 +299,8 @@ export function App() {
   )
 
   const refreshList = useCallback(async () => {
-    const res = await api({ type: 'agent.list' })
-    if (!res.ok) return
+    const res = await refreshAgentsList({ api })
+    if (!res?.ok) return
     const items = (res.agents as Array<{ agent: AgentConfig; runtime: Runtime; banners: Banner[] }>) ?? []
     setAgents((prev) => {
       const next: Record<string, AgentBundle> = {}
@@ -350,7 +357,10 @@ export function App() {
       }
       if (v.channel === 'harness' || v.channel === 'daemon') applyEnvelope(v)
     })
-    const offStatus = window.openbot.onStatus((s) => setConnected(s.connected))
+    const offStatus = window.openbot.onStatus((s) => {
+      setConnected(s.connected)
+      if (s.connected) void refreshList()
+    })
     const offMenu = window.openbot.onMenu((a) => {
       if (a.action === 'new-agent') setNewOpen(true)
       if (a.action === 'browser') {
@@ -501,6 +511,31 @@ export function App() {
       return 'Couldn’t create agent. Try again.'
     }
     const agent = res.agent as AgentConfig
+    const runtime = (res.runtime as Runtime) ?? {
+      agentId: agent.id,
+      state: 'idle',
+      queueCount: 0,
+      spendUsdToday: 0,
+      harnessAuth: { 'claude-code': 'logged-in', codex: 'logged-in' },
+      humanControl: { held: false },
+      talkingToAgentId: null,
+      contextUsed: null,
+      contextWindow: null,
+      sessionId: null,
+      mcp: [],
+    }
+    const banners = (res.banners as Banner[]) ?? []
+    setAgents((prev) => ({
+      ...prev,
+      [agent.id]: {
+        agent,
+        runtime,
+        banners,
+        turns: prev[agent.id]?.turns ?? [],
+        unread: false,
+        historyLoaded: false,
+      },
+    }))
     setSelectedId(agent.id)
     await refreshList()
     await loadHistory(agent.id)

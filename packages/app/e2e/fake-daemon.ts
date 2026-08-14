@@ -153,6 +153,17 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify(lastAskAnswer))
       return
     }
+    if (req.url === '/debug/last-requests') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify(lastConn?.lastRequests ?? []))
+      return
+    }
+    if (req.url === '/debug/clear-requests') {
+      if (lastConn) lastConn.lastRequests = []
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ ok: true }))
+      return
+    }
     if (req.url?.startsWith('/debug/needs-site')) {
       const u = new URL(req.url, 'http://127.0.0.1')
       let agentId = u.searchParams.get('agentId') ?? ''
@@ -516,6 +527,11 @@ wss.on('connection', (ws, req) => {
             displayName: 'Sonnet 5',
             efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
           },
+          {
+            id: 'claude-opus-4',
+            displayName: 'Opus 4',
+            efforts: ['high'],
+          },
         ],
       })
       return
@@ -752,6 +768,7 @@ wss.on('connection', (ws, req) => {
         return
       }
       const userTurnId = randomUUID()
+      const busy = ['thinking', 'needs-you', 'memorizing', 'compacting'].includes(row.runtime.state)
       row.turns.push({
         id: userTurnId,
         seq: row.turns.length + 1,
@@ -761,6 +778,28 @@ wss.on('connection', (ws, req) => {
         parts: [{ type: 'text', id: randomUUID(), text }],
         createdAt: new Date().toISOString(),
       })
+      push(
+        ws,
+        conn,
+        row.agent.id,
+        'harness',
+        {
+          kind: 'turn-created',
+          turnId: userTurnId,
+          seq: row.turns.length,
+          role: 'user',
+          source: 'user',
+          createdAt: new Date().toISOString(),
+          text,
+        },
+        userTurnId,
+      )
+      if (busy) {
+        row.runtime = { ...row.runtime, queueCount: (row.runtime.queueCount ?? 0) + 1 }
+        push(ws, conn, row.agent.id, 'daemon', { kind: 'agent-runtime', runtime: row.runtime })
+        reply({ ok: true, turnId: userTurnId })
+        return
+      }
       const assistantTurnId = randomUUID()
       row.runtime = { ...row.runtime, state: 'thinking' }
       push(ws, conn, row.agent.id, 'daemon', { kind: 'agent-runtime', runtime: row.runtime })

@@ -1,6 +1,7 @@
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { waitForAgentName } from './helpers'
 
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -20,6 +21,7 @@ async function launch(scenario = 'peer'): Promise<{ app: ElectronApplication; pa
 }
 
 async function selectAgent(page: Page, name: string) {
+  await waitForAgentName(page, name)
   await page.getByTestId('agent-name').filter({ hasText: name }).click()
 }
 

@@ -15,12 +15,19 @@ export type FoldTurn = {
 /** Fold a harness stream event into one turn. Uses shared applyEvent for part kinds. */
 export function foldTurnEvent(turn: FoldTurn, event: HarnessEvent): FoldTurn {
   if (event.kind === 'turn-created') {
-    return {
+    const next: FoldTurn = {
       ...turn,
       id: event.turnId,
       source: event.source,
       role: event.role,
     }
+    if (event.role === 'user' && event.text) {
+      return {
+        ...next,
+        parts: [{ type: 'text', id: event.turnId, text: event.text }],
+      }
+    }
+    return next
   }
   if (event.kind === 'turn-finished') {
     return {
