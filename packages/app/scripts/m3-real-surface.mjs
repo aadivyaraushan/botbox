@@ -1,33 +1,41 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process'
+/**
+ * M3 real-surface AskUserQuestion drive.
+ * Requires prior OpenBot Claude login at $OPENBOT_HOME/claude-config/.credentials.json
+ * (default ~/.openbot). Use scripts/dev/login.mjs + e2e/computer-use/harness-login.md.
+ * Never copy ~/.claude/.credentials.json or a Chrome profile.
+ */
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { randomBytes, randomUUID } from 'node:crypto'
-import { createRequire } from 'node:module'
-import { WebSocket } from 'ws'
-import { encodeFrame, decodeFrame } from '@openbot/daemon/wire'
-import { _electron as electron } from '@playwright/test'
+import { fileURLToPath } from 'node:url'
 
-const root = '/Users/aadivyar/Documents/Startups/grok-bot-clone-wt-m3'
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..')
 const appRoot = path.join(root, 'packages/app')
-const port = 18899
-const token = randomBytes(16).toString('hex')
-const home = fs.mkdtempSync(path.join(os.tmpdir(), 'openbot-m3-'))
-const claudeDir = path.join(home, 'claude-config')
-fs.mkdirSync(claudeDir, { recursive: true })
-fs.mkdirSync(path.join(home, 'hindsight', 'data'), { recursive: true })
+const home = process.env.OPENBOT_HOME ?? path.join(os.homedir(), '.openbot')
+const claudeCreds = path.join(home, 'claude-config', '.credentials.json')
 
-const srcCred = path.join(os.homedir(), '.claude', '.credentials.json')
-if (!fs.existsSync(srcCred)) {
-  console.error('real-surface: missing ~/.claude/.credentials.json')
+if (!fs.existsSync(claudeCreds)) {
+  console.error('real-surface: missing OpenBot Claude login at', claudeCreds)
+  console.error('Run: node scripts/dev/login.mjs  (see e2e/computer-use/harness-login.md)')
+  console.error('Do not copy ~/.claude/.credentials.json or a Chrome profile.')
   process.exit(1)
 }
-fs.copyFileSync(srcCred, path.join(claudeDir, '.credentials.json'))
+
+const { spawn } = await import('node:child_process')
+const { randomBytes, randomUUID } = await import('node:crypto')
+const { WebSocket } = await import('ws')
+const { encodeFrame, decodeFrame } = await import('@openbot/daemon/wire')
+const { _electron: electron } = await import('@playwright/test')
+
+const port = Number(process.env.OPENBOT_PORT ?? 18899)
+const token = process.env.OPENBOT_ADMIN_TOKEN ?? randomBytes(16).toString('hex')
+
+fs.mkdirSync(path.join(home, 'hindsight', 'data'), { recursive: true })
 
 const daemon = spawn(
   path.join(root, 'node_modules/.bin/tsx'),
-  [path.join(root, 'packages/app/scripts/m3-start-daemon.mjs')],
+  [path.join(appRoot, 'scripts/start-real-daemon.mjs')],
   {
     cwd: path.join(root, 'packages/daemon'),
     env: {
@@ -147,6 +155,8 @@ async function main() {
 
 main().catch(async (err) => {
   console.error('real-surface failed', err)
-  try { daemon.kill('SIGTERM') } catch {}
+  try {
+    daemon.kill('SIGTERM')
+  } catch {}
   process.exit(1)
 })
