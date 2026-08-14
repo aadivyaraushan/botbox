@@ -4,6 +4,14 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { writeDeny } from '../src/claude/write-deny.js'
 
+type DenyHookOut = {
+  hookSpecificOutput?: {
+    hookEventName?: string
+    permissionDecision?: string
+    permissionDecisionReason?: string
+  }
+}
+
 describe('write-deny', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'wd-'))
   const ada = path.join(home, 'agents', 'ada')
@@ -22,7 +30,11 @@ describe('write-deny', () => {
   }
 
   it('denies Bash redirect into other agent MEMORY', () => {
-    const r = writeDeny('Bash', { command: `echo x >> ${path.join(home, 'agents', 'bea', 'MEMORY.md')}` }, ctx)
+    const r = writeDeny(
+      'Bash',
+      { command: `echo x >> ${path.join(home, 'agents', 'bea', 'MEMORY.md')}` },
+      ctx,
+    ) as DenyHookOut
     expect(r).toEqual({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
@@ -33,17 +45,17 @@ describe('write-deny', () => {
   })
 
   it('denies NotebookEdit to bea MEMORY', () => {
-    const r = writeDeny('NotebookEdit', { notebook_path: path.join(bea, 'MEMORY.md') }, ctx)
+    const r = writeDeny('NotebookEdit', { notebook_path: path.join(bea, 'MEMORY.md') }, ctx) as DenyHookOut
     expect(r.hookSpecificOutput?.permissionDecision).toBe('deny')
   })
 
   it('denies fake Patch tool path', () => {
-    const r = writeDeny('Patch', { path: path.join(bea, 'file.txt') }, ctx)
+    const r = writeDeny('Patch', { path: path.join(bea, 'file.txt') }, ctx) as DenyHookOut
     expect(r.hookSpecificOutput?.permissionDecision).toBe('deny')
   })
 
   it('denies Read of team.json', () => {
-    const r = writeDeny('Read', { file_path: path.join(home, 'team.json') }, ctx)
+    const r = writeDeny('Read', { file_path: path.join(home, 'team.json') }, ctx) as DenyHookOut
     expect(r).toEqual({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
@@ -58,30 +70,41 @@ describe('write-deny', () => {
       'Read',
       { file_path: path.join(home, 'private', 'bea', 'browser-allow.json') },
       ctx,
-    )
+    ) as DenyHookOut
     expect(r.hookSpecificOutput?.permissionDecisionReason).toBe('Cannot read OpenBot private files.')
   })
 
   it('allows Read of Bea MEMORY', () => {
-    const r = writeDeny('Read', { file_path: path.join(bea, 'MEMORY.md') }, ctx)
+    const r = writeDeny('Read', { file_path: path.join(bea, 'MEMORY.md') }, ctx) as DenyHookOut
     expect(r).toEqual({})
   })
 
   it('denies relative ../../bea/MEMORY.md Write', () => {
-    const r = writeDeny('Write', { file_path: '../../bea/MEMORY.md' }, ctx)
+    const r = writeDeny('Write', { file_path: '../../bea/MEMORY.md' }, ctx) as DenyHookOut
     expect(r.hookSpecificOutput?.permissionDecision).toBe('deny')
   })
 
   it('denies quoted redirect and && chain', () => {
     expect(
-      writeDeny('Bash', { command: "echo x >> '~/.openbot/agents/bea/MEMORY.md'" }, {
-        ...ctx,
-        home: path.join(home), // ~ expands to os.homedir — use absolute instead
-      }).hookSpecificOutput ||
-        writeDeny('Bash', { command: `echo x >> '${path.join(home, 'agents', 'bea', 'MEMORY.md')}'` }, ctx)
-          .hookSpecificOutput,
+      (
+        writeDeny(
+          'Bash',
+          { command: "echo x >> '~/.openbot/agents/bea/MEMORY.md'" },
+          {
+            ...ctx,
+            home: path.join(home),
+          },
+        ) as DenyHookOut
+      ).hookSpecificOutput ||
+        (
+          writeDeny(
+            'Bash',
+            { command: `echo x >> '${path.join(home, 'agents', 'bea', 'MEMORY.md')}'` },
+            ctx,
+          ) as DenyHookOut
+        ).hookSpecificOutput,
     ).toBeTruthy()
-    const r = writeDeny('Bash', { command: 'true && echo x >> ../../bea/MEMORY.md' }, ctx)
+    const r = writeDeny('Bash', { command: 'true && echo x >> ../../bea/MEMORY.md' }, ctx) as DenyHookOut
     expect(r.hookSpecificOutput?.permissionDecision).toBe('deny')
   })
 })

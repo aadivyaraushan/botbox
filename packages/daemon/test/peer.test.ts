@@ -12,6 +12,7 @@ import {
   tempHome,
   type FakeMemory,
 } from './helpers.js'
+import type { QueryFn } from '../src/claude/adapter.js'
 import { LIST_AGENTS_DESC, MESSAGE_AGENT_DESC } from '../src/mcp/peer-tools.js'
 
 function stream() {
@@ -87,7 +88,7 @@ describe('peer', () => {
       const mem: FakeMemory = { banks: new Map(), calls: [] }
       const fetchFn = makeFakeFetch(mem)
       const adminToken = randomBytes(32).toString('hex')
-      const queryFn = (() => {
+      const queryFn: QueryFn = (() => {
         return {
           async interrupt() {
             release()
@@ -103,7 +104,7 @@ describe('peer', () => {
             yield { type: 'result', subtype: 'success', session_id: 's', total_cost_usd: 0.01 }
           },
         } as never
-      }) as typeof stream
+      }) as QueryFn
 
       const daemon = new Daemon({
         home,

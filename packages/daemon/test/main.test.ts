@@ -9,7 +9,7 @@ const tsx = path.join(pkg, '..', '..', '..', 'node_modules', '.bin', 'tsx')
 
 describe('main', () => {
   it('exits when OPENBOT_ADMIN_TOKEN is unset', async () => {
-    const env = { ...process.env, OPENBOT_HOME: '/tmp/openbot-main-test' }
+    const env: NodeJS.ProcessEnv = { ...process.env, OPENBOT_HOME: '/tmp/openbot-main-test' }
     delete env.OPENBOT_ADMIN_TOKEN
     const child = spawn(tsx, [main], {
       env,

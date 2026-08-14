@@ -38,13 +38,13 @@ describe('reducer', () => {
     parts = applyEvent(parts, {
       kind: 'compacted',
       partId: 'k1',
-      reason: 'overflow',
+      reason: 'harness-switch',
       forHarness: 'claude-code',
     })
     parts = applyEvent(parts, {
       kind: 'compacted',
       partId: 'k1',
-      reason: 'again',
+      reason: 'manual',
     })
     parts = applyEvent(parts, {
       kind: 'peer-message',
@@ -62,18 +62,26 @@ describe('reducer', () => {
       direction: 'received',
       text: 'pong',
     })
+    const askQs = [
+      {
+        question: 'Q?',
+        header: 'Q',
+        options: [{ label: 'yes', description: 'affirm' }],
+        multiSelect: false,
+      },
+    ]
     parts = applyEvent(parts, {
       kind: 'ask-user-question',
       partId: 'a1',
-      questions: [{ id: 'q1', prompt: 'Q?' }],
+      questions: askQs,
       status: 'open',
     })
     parts = applyEvent(parts, {
       kind: 'ask-user-question',
       partId: 'a1',
-      questions: [{ id: 'q1', prompt: 'Q?' }],
+      questions: askQs,
       status: 'answered',
-      answers: { q1: 'yes' },
+      answers: { 'Q?': 'yes' },
       response: 'yes',
     })
     parts = applyEvent(parts, {

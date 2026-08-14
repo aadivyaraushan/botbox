@@ -53,7 +53,7 @@ describe('hindsight-spawn', () => {
       home,
       port: 18765,
       resourcePath: resource,
-      spawnFn: ((_c, args) => {
+      spawnFn: ((_c: string, args: readonly string[]) => {
         const i = args.indexOf('--port')
         ports.push(Number(args[i + 1]))
         return { kill() {} } as never
