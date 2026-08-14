@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { Daemon } from './daemon.js'
@@ -16,6 +15,8 @@ const daemon = new Daemon({
   home,
   adminToken: token,
   port,
+  repoRoot: process.env.OPENBOT_REPO_ROOT,
+  resourcePath: process.env.OPENBOT_HINDSIGHT_ROOT,
 })
 
 const { port: bound } = await daemon.start()

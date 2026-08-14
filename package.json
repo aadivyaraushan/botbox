@@ -12,7 +12,8 @@
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
-    "tsx": "4.23.12"
+    "tsx": "4.23.12",
+    "esbuild": "0.25.12"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

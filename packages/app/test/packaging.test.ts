@@ -23,6 +23,8 @@ describe('M2b packager config', () => {
     expect(yml).toContain('NSScreenCaptureUsageDescription')
     expect(yml).toContain('../../resources/hindsight')
     expect(yml).toMatch(/to:\s*hindsight/)
+    expect(yml).toContain('../../resources/daemon')
+    expect(yml).toMatch(/to:\s*daemon/)
     expect(yml).toMatch(/afterPack:\s*scripts\/after-pack\.cjs/)
     expect(yml).not.toMatch(/app-sandbox/i)
     expect(yml).not.toMatch(/mas/i)
@@ -109,3 +111,17 @@ describe('M2b packager config', () => {
     }
   })
 })
+
+describe('packaged daemon resources', () => {
+  it('resources/daemon/main.mjs exists after bundle (or fails closed)', async () => {
+    const { execFileSync } = await import('node:child_process')
+    const repoRoot = join(appRoot, '../..')
+    const entry = join(repoRoot, 'resources', 'daemon', 'main.mjs')
+    execFileSync(process.execPath, [join(repoRoot, 'scripts/dev/bundle-daemon.mjs')], {
+      cwd: repoRoot,
+      stdio: 'pipe',
+    })
+    expect(existsSync(entry)).toBe(true)
+  })
+})
+
