@@ -216,6 +216,7 @@ Framing is defined in this section (do **not** read `planning/botbox-plan.md` §
   - App WebSocket: `ws://127.0.0.1:${OPENBOT_PORT}/?token=<admin-token>`
   - Harness MCP (HTTP, Streamable HTTP): `http://127.0.0.1:${OPENBOT_PORT}/mcp/<agentId>?token=<mcp-token-for-that-agent>`
 - **Admin token (WebSocket only):** the **app** generates it at first launch (32 random bytes, hex). If `safeStorage.isEncryptionAvailable()` is true, encrypt with `safeStorage.encryptString` and write the ciphertext to `app.getPath('userData')/admin-token.bin`. If it is **false**, write the hex token **plaintext** to that same path with mode `0600`. On launch, decrypt or read plaintext accordingly. Pass `OPENBOT_ADMIN_TOKEN` in the daemon child environment. The daemon holds it in **memory only**. No token on the socket → close. **Never** put this token in an agent folder or in `config.toml`.
+- **Packaged daemon spawn (locked):** when `app.isPackaged`, resolve the daemon entry under `process.resourcesPath/daemon/main.mjs` (esbuild bundle + sidecar assets via `extraResources` / prepackage); spawn with `process.execPath` and `ELECTRON_RUN_AS_NODE=1` (do **not** use `app.getAppPath()/../..` + `tsx`). Dev / unpackaged keeps `repoRoot` + `node_modules/.bin/tsx` + `packages/daemon/src/main.ts`.
 - **MCP tokens (per agent):** in **daemon memory only** (`Map<agentId, token>`). On `agent.create` **and on every daemon start**, generate a fresh 32-byte hex token per agent. **Do not write** `~/.openbot/mcp-tokens.json` (delete that path from the tree). `/mcp/<agentId>` accepts **only** that agent’s current token. Ada’s token on Bea’s path → 401. The admin token on `/mcp/` → 401. `agent.delete` drops the memory key. Claude gets the url (with token) only via Agent SDK `query()` `mcpServers.openbot` — **not** a shared `settings.json`. Codex: write the url into **that agent’s** `private/<slug>/codex-home/config.toml` only, on every spawn. `codex.test.ts`: Ada’s `config.toml` does not contain Bea’s token; no file under `OPENBOT_HOME` except `private/<slug>/codex-home/config.toml` contains that slug’s token. **Known:** with permission profiles, other-agent dirs are `"read"` (not write); private/credential paths are `"deny"` including read. Do not put every token in one file.
 - **E2E seam:** when `process.env.OPENBOT_DAEMON_WS` is set, the app **does not** spawn a daemon child and **does not** read/write `admin-token.bin`. Connect to `OPENBOT_DAEMON_WS` **exactly as given**; do not add or rewrite `token` (the Playwright URL already has `?token=test-token&scenario=…`). Production launches never set this.
 - **M1 (no app):** the developer exports `OPENBOT_ADMIN_TOKEN` (any 64-hex string). `pnpm --filter @openbot/daemon start`, `scripts/dev/login.mjs`, and `packages/daemon/scripts/smoke.mjs` all read that env var and exit `1` with `OPENBOT_ADMIN_TOKEN is unset` if missing. `login.mjs` **never** reads `admin-token.bin`.
@@ -1601,8 +1602,12 @@ mac:
 extraResources:
   - from: ../../resources/hindsight
     to: hindsight
+  - from: ../../resources/daemon
+    to: daemon
 afterPack: scripts/after-pack.cjs
 ```
+
+**Packaged daemon (locked):** before `electron-builder`, `scripts/dev/bundle-daemon.mjs` esbuilds `packages/daemon/src/main.ts` → `resources/daemon/main.mjs` and copies sidecar assets (`memory/*.md`, `harness/compact-prompt.md`, `claude/models.json` as `models.json`, `scripts/dev/print-login-url.mjs`). Packaged spawn uses `process.resourcesPath/daemon/main.mjs` + `ELECTRON_RUN_AS_NODE=1` + `process.execPath` (§3.5).
 
 **`packages/app/build/entitlements.mac.plist` (complete body — no App Sandbox):**
 

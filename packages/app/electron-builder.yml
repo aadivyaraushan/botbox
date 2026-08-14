@@ -13,4 +13,6 @@ mac:
 extraResources:
   - from: ../../resources/hindsight
     to: hindsight
+  - from: ../../resources/daemon
+    to: daemon
 afterPack: scripts/after-pack.cjs
