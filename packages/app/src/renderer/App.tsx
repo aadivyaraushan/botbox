@@ -273,7 +273,20 @@ export function App() {
             const p = t.parts.find((x) => x.id === partId)
             if (p) p.status = String(event.status)
           } else if (event.kind === 'peer-message' || (event as { type?: string }).type === 'peer-message') {
-            /* harness peer is usually a part via history; live via daemon may differ */
+            const t = ensure()
+            const partId = String(event.partId)
+            const part = {
+              type: 'peer-message',
+              id: partId,
+              peerAgentId: String(event.peerAgentId ?? ''),
+              peerName: String(event.peerName ?? ''),
+              direction: String(event.direction ?? 'received'),
+              text: String(event.text ?? ''),
+            }
+            const existing = t.parts.find((x) => x.id === partId)
+            if (existing) Object.assign(existing, part)
+            else t.parts.push(part)
+            if (String(event.direction) === 'received' && selectedId !== agentId) unread = true
           }
           return { ...prev, [agentId]: { ...cur, turns, unread } }
         })

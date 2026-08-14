@@ -1,5 +1,6 @@
 import { AskCard, type AskPart } from '../thread-ask/AskCard'
 import type { AskQuestion } from '../thread-ask/ask-answers'
+import { formatPeerMarker } from '../thread-peer/peer-marker'
 
 type Part =
   | { type: 'text'; id: string; text: string }
@@ -91,10 +92,17 @@ export function PartTimeline({ turns, answerChatPartId, onAskAnswer, onAskAnswer
                 )
               }
               if (p.type === 'peer-message') {
+                const marker = formatPeerMarker({
+                  direction: p.direction,
+                  peerName: p.peerName,
+                  text: p.text,
+                })
                 return (
                   <div key={p.id} className="divider" data-testid="peer-marker">
-                    {p.direction === 'sent' ? `Messaged ${p.peerName}` : `Message from ${p.peerName}`}
-                    {p.direction === 'received' ? `: ${p.text}` : ''}
+                    <div data-testid="peer-marker-title">{marker.title}</div>
+                    {marker.preview ? (
+                      <div data-testid="peer-marker-preview">{marker.preview}</div>
+                    ) : null}
                   </div>
                 )
               }

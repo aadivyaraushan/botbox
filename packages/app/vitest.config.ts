@@ -6,6 +6,7 @@ export default defineConfig({
       'src/main/arch.test.ts',
       'src/main/tray-notify.test.ts',
       'src/renderer/thread-ask/ask-answers.test.ts',
+      'src/renderer/thread-peer/peer-marker.test.ts',
       'test/packaging.test.ts',
     ],
     environment: 'node',
