@@ -11,12 +11,14 @@ const entitlements = join(appRoot, 'build', 'entitlements.mac.plist')
 const afterPackPath = join(appRoot, 'scripts', 'after-pack.cjs')
 
 describe('M2b packager config', () => {
-  it('electron-builder.yml pins appId, ad-hoc identity null, extraResources, afterPack', () => {
+  it('electron-builder.yml pins appId, ad-hoc identity "-", extraResources, afterPack', () => {
     expect(existsSync(builderYml)).toBe(true)
     const yml = readFileSync(builderYml, 'utf8')
     expect(yml).toMatch(/appId:\s*com\.openbot\.app/)
     expect(yml).toMatch(/productName:\s*OpenBot/)
-    expect(yml).toMatch(/identity:\s*null/)
+    // Ad-hoc codesign that actually signs (electron-builder: "-" = ad-hoc; null = skip).
+    expect(yml).toMatch(/identity:\s*["']-["']/)
+    expect(yml).not.toMatch(/identity:\s*null/)
     expect(yml).toMatch(/hardenedRuntime:\s*true/)
     expect(yml).toMatch(/entitlements:\s*build\/entitlements\.mac\.plist/)
     expect(yml).toContain('NSAppleEventsUsageDescription')

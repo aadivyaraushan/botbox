@@ -4,7 +4,7 @@ mac:
   target:
     - dmg
     - zip
-  identity: null
+  identity: "-"
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist
   extendInfo:
