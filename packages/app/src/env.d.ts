@@ -39,6 +39,7 @@ type OpenBotApi = {
   }
   onBrowserTabNeeded: (cb: (ev: { agentId: string; tabId: string }) => void) => () => void
   onTerminalTabNeeded: (cb: (ev: { agentId: string; tabId: string }) => void) => () => void
+  onBrowserMeta: (cb: (ev: { tabId: string; url: string; title: string }) => void) => () => void
 }
 
 interface Window {

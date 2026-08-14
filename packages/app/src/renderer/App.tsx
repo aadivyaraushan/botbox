@@ -415,6 +415,24 @@ export function App() {
     const offTermNeed = window.openbot.onTerminalTabNeeded((ev) => {
       addTab(ev.agentId, 'terminal', ev.tabId)
     })
+    const offBrowserMeta = window.openbot.onBrowserMeta((ev) => {
+      setTabsByAgent((prev) => {
+        let changed = false
+        const next: Record<string, RightTab[]> = {}
+        for (const [aid, tabs] of Object.entries(prev)) {
+          next[aid] = tabs.map((t) => {
+            if (t.id !== ev.tabId || t.kind !== 'browser') return t
+            changed = true
+            return {
+              ...t,
+              url: ev.url,
+              title: ev.title || ev.url.replace(/^https?:\/\//, '').slice(0, 24) || 'Browser',
+            }
+          })
+        }
+        return changed ? next : prev
+      })
+    })
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === '`') {
         e.preventDefault()
@@ -449,6 +467,7 @@ export function App() {
       offSelect()
       offBrowserNeed()
       offTermNeed()
+      offBrowserMeta()
       window.removeEventListener('keydown', onKey)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
