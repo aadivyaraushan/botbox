@@ -10,12 +10,45 @@ import type { Turn } from '@openbot/protocol'
 const PORT = 18799
 const TOKEN = 'test-token'
 
+let lastAskAnswer: Record<string, unknown> | null = null
+
 type Conn = {
   scenario: string
   agents: Map<string, { agent: AgentConfig; runtime: AgentRuntime; banners: Banner[]; turns: Turn[] }>
   envelopeId: number
   lastRequests: Array<Record<string, unknown>>
   loggedOutOnCreate: boolean
+}
+
+type AskQuestion = {
+  question: string
+  header: string
+  options: Array<{ label: string; description: string }>
+  multiSelect: boolean
+}
+
+function askPart(questions: AskQuestion[]): Turn['parts'][number] {
+  return {
+    type: 'ask-user-question',
+    id: randomUUID(),
+    questions,
+    status: 'open',
+  }
+}
+
+function seedAskAgent(questions: AskQuestion[]): Conn['agents'] extends Map<string, infer V> ? V : never {
+  const row = makeAgent('Ada', { state: 'needs-you' })
+  const part = askPart(questions)
+  row.turns.push({
+    id: randomUUID(),
+    seq: 2,
+    agentId: row.agent.id,
+    role: 'assistant',
+    source: 'user',
+    parts: [part],
+    createdAt: new Date().toISOString(),
+  })
+  return row
 }
 
 function baseRuntime(agentId: string, overrides: Partial<AgentRuntime> = {}): AgentRuntime {
@@ -99,6 +132,11 @@ const server = http.createServer((req, res) => {
     res.end('ok')
     return
   }
+  if (req.url === '/debug/last-ask-answer') {
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify(lastAskAnswer))
+    return
+  }
   res.writeHead(404)
   res.end()
 })
@@ -118,6 +156,61 @@ wss.on('connection', (ws, req) => {
     envelopeId: 0,
     lastRequests: [],
     loggedOutOnCreate: false,
+  }
+  lastAskAnswer = null
+
+  if (scenario === 'ask') {
+    const row = seedAskAgent([
+      {
+        question: 'Ship today or tomorrow?',
+        header: 'Ship',
+        options: [
+          { label: 'Today', description: 'Ship now' },
+          { label: 'Tomorrow', description: 'Wait one day' },
+        ],
+        multiSelect: false,
+      },
+    ])
+    conn.agents.set(row.agent.id, row)
+  }
+
+  if (scenario === 'ask-two') {
+    const row = seedAskAgent([
+      {
+        question: 'Ship today or tomorrow?',
+        header: 'Ship',
+        options: [
+          { label: 'Today', description: 'Ship now' },
+          { label: 'Tomorrow', description: 'Wait one day' },
+        ],
+        multiSelect: false,
+      },
+      {
+        question: 'Which color?',
+        header: 'Color',
+        options: [
+          { label: 'Red', description: '' },
+          { label: 'Blue', description: '' },
+        ],
+        multiSelect: false,
+      },
+    ])
+    conn.agents.set(row.agent.id, row)
+  }
+
+  if (scenario === 'ask-multi') {
+    const row = seedAskAgent([
+      {
+        question: 'Pick toppings',
+        header: 'Toppings',
+        options: [
+          { label: 'Cheese', description: '' },
+          { label: 'Onion', description: '' },
+        ],
+        multiSelect: true,
+      },
+    ])
+    conn.agents.set(row.agent.id, row)
   }
 
   if (scenario === 'peer') {
@@ -515,6 +608,60 @@ wss.on('connection', (ws, req) => {
         createdAt: new Date().toISOString(),
       })
       reply({ ok: true, turnId: assistantTurnId })
+      return
+    }
+
+    if (type === 'ask.answer') {
+      const agentId = String(msg.agentId)
+      const partId = String(msg.partId)
+      const row = conn.agents.get(agentId)
+      if (!row) {
+        reply({ ok: false, error: 'agent-not-found' })
+        return
+      }
+      lastAskAnswer = {
+        type: 'ask.answer',
+        agentId,
+        partId,
+        answers: (msg.answers as Record<string, string>) ?? {},
+        ...(typeof msg.response === 'string' ? { response: msg.response } : {}),
+      }
+      let turnId: string | null = null
+      for (const turn of row.turns) {
+        const part = turn.parts.find((p) => p.type === 'ask-user-question' && p.id === partId) as
+          | (Turn['parts'][number] & {
+              type: 'ask-user-question'
+              status: string
+              answers?: Record<string, string>
+              response?: string
+            })
+          | undefined
+        if (!part) continue
+        if (part.status !== 'open') {
+          reply({ ok: false, error: 'not-open' })
+          return
+        }
+        part.status = 'answered'
+        part.answers = (msg.answers as Record<string, string>) ?? {}
+        if (typeof msg.response === 'string') part.response = msg.response
+        turnId = turn.id
+        break
+      }
+      if (!turnId) {
+        reply({ ok: false, error: 'not-open' })
+        return
+      }
+      row.runtime = { ...row.runtime, state: 'thinking' }
+      push(ws, conn, agentId, 'daemon', { kind: 'agent-runtime', runtime: row.runtime })
+      push(
+        ws,
+        conn,
+        agentId,
+        'harness',
+        { kind: 'ask-user-question-status', partId, status: 'answered' },
+        turnId,
+      )
+      reply({ ok: true })
       return
     }
 

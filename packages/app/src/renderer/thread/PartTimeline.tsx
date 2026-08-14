@@ -1,3 +1,6 @@
+import { AskCard, type AskPart } from '../thread-ask/AskCard'
+import type { AskQuestion } from '../thread-ask/ask-answers'
+
 type Part =
   | { type: 'text'; id: string; text: string }
   | { type: 'reasoning'; id: string; text: string }
@@ -10,7 +13,14 @@ type Part =
       direction: 'sent' | 'received'
       text: string
     }
-  | { type: 'ask-user-question'; id: string; status: string }
+  | {
+      type: 'ask-user-question'
+      id: string
+      status: 'open' | 'answered' | 'cancelled'
+      questions: AskQuestion[]
+      answers?: Record<string, string>
+      response?: string
+    }
 
 type Turn = {
   id: string
@@ -23,6 +33,9 @@ type Turn = {
 
 type Props = {
   turns: Turn[]
+  answerChatPartId?: string | null
+  onAskAnswer: (partId: string, answers: Record<string, string>) => void
+  onAskAnswerInChat: (partId: string) => void
 }
 
 function dividerLabel(turn: Turn): string | null {
@@ -33,7 +46,22 @@ function dividerLabel(turn: Turn): string | null {
   return null
 }
 
-export function PartTimeline({ turns }: Props) {
+function asAskPart(p: Extract<Part, { type: 'ask-user-question' }>): AskPart {
+  return {
+    id: p.id,
+    status: p.status,
+    questions: (p.questions ?? []).map((q) => ({
+      question: q.question,
+      header: q.header,
+      options: q.options ?? [],
+      multiSelect: Boolean(q.multiSelect),
+    })),
+    answers: p.answers,
+    response: p.response,
+  }
+}
+
+export function PartTimeline({ turns, answerChatPartId, onAskAnswer, onAskAnswerInChat }: Props) {
   return (
     <div className="thread" data-testid="thread">
       {turns.map((t) => {
@@ -68,6 +96,17 @@ export function PartTimeline({ turns }: Props) {
                     {p.direction === 'sent' ? `Messaged ${p.peerName}` : `Message from ${p.peerName}`}
                     {p.direction === 'received' ? `: ${p.text}` : ''}
                   </div>
+                )
+              }
+              if (p.type === 'ask-user-question') {
+                return (
+                  <AskCard
+                    key={p.id}
+                    part={asAskPart(p)}
+                    pendingChat={answerChatPartId === p.id}
+                    onSubmitAnswers={(answers) => onAskAnswer(p.id, answers)}
+                    onAnswerInChat={() => onAskAnswerInChat(p.id)}
+                  />
                 )
               }
               if (p.type === 'text') {

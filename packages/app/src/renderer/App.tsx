@@ -135,6 +135,7 @@ export function App() {
   const [renameId, setRenameId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [rightTabs] = useState<Array<{ id: string; kind: 'browser' | 'terminal' | 'files'; title: string }>>([])
+  const [answerChat, setAnswerChat] = useState<{ agentId: string; partId: string } | null>(null)
   const streamStarted = useRef(false)
   const lastEnvelopeId = useRef(0)
 
@@ -251,11 +252,40 @@ export function App() {
               forHarness: event.forHarness as string | undefined,
             })
             if (event.reason === 'manual') t.source = 'compact'
+          } else if (event.kind === 'ask-user-question') {
+            const t = ensure()
+            const partId = String(event.partId)
+            const existing = t.parts.find((x) => x.id === partId)
+            const part = {
+              type: 'ask-user-question',
+              id: partId,
+              questions: event.questions,
+              status: String(event.status ?? 'open'),
+              ...(event.answers !== undefined ? { answers: event.answers } : {}),
+              ...(event.response !== undefined ? { response: event.response } : {}),
+            }
+            if (existing) Object.assign(existing, part)
+            else t.parts.push(part)
+            if (selectedId !== agentId) unread = true
+          } else if (event.kind === 'ask-user-question-status') {
+            const t = ensure()
+            const partId = String(event.partId)
+            const p = t.parts.find((x) => x.id === partId)
+            if (p) p.status = String(event.status)
           } else if (event.kind === 'peer-message' || (event as { type?: string }).type === 'peer-message') {
             /* harness peer is usually a part via history; live via daemon may differ */
           }
           return { ...prev, [agentId]: { ...cur, turns, unread } }
         })
+        if (
+          event.kind === 'ask-user-question-status' &&
+          (String(event.status) === 'answered' || String(event.status) === 'cancelled')
+        ) {
+          const partId = String(event.partId)
+          setAnswerChat((cur) =>
+            cur && cur.agentId === agentId && cur.partId === partId ? null : cur,
+          )
+        }
       }
     },
     [selectedId, upsertRuntime],
@@ -427,6 +457,10 @@ export function App() {
 
   async function handlePrimary() {
     if (!selected) return
+    if (answerChat && answerChat.agentId === selected.agent.id) {
+      if (draft.trim()) await sendAskResponse(draft)
+      return
+    }
     const state = selected.runtime.state
     if (state === 'thinking' || state === 'needs-you') {
       await api({ type: 'agent.pause', agentId: selected.agent.id })
@@ -442,8 +476,51 @@ export function App() {
     }
   }
 
+  async function sendAskAnswer(partId: string, answers: Record<string, string>, response?: string) {
+    if (!selected) return
+    const body: Record<string, unknown> = {
+      type: 'ask.answer',
+      agentId: selected.agent.id,
+      partId,
+      answers,
+    }
+    if (response !== undefined) body.response = response
+    const res = await api(body)
+    if (!res.ok) return
+    setAnswerChat(null)
+    setAgents((prev) => {
+      const cur = prev[selected.agent.id]
+      if (!cur) return prev
+      const turns = cur.turns.map((t) => ({
+        ...t,
+        parts: t.parts.map((p) => {
+          if (p.id !== partId || p.type !== 'ask-user-question') return p
+          return {
+            ...p,
+            status: 'answered',
+            answers,
+            ...(response !== undefined ? { response } : {}),
+          }
+        }),
+      }))
+      return { ...prev, [selected.agent.id]: { ...cur, turns } }
+    })
+    setDraft('')
+  }
+
+  async function sendAskResponse(text: string) {
+    if (!selected || !answerChat) return
+    const trimmed = text.trim()
+    if (!trimmed) return
+    await sendAskAnswer(answerChat.partId, {}, trimmed)
+  }
+
   async function sendChat(text: string) {
     if (!selected) return
+    if (answerChat && answerChat.agentId === selected.agent.id) {
+      await sendAskResponse(text)
+      return
+    }
     const trimmed = text.trim()
     if (!trimmed) return
     const state = selected.runtime.state
@@ -509,7 +586,12 @@ export function App() {
     setSlashError('Unknown command. Try /model or /compact.')
   }
 
-  const primary = selected ? primaryFor(selected.runtime.state) : 'send'
+  const primary =
+    selected && answerChat && answerChat.agentId === selected.agent.id
+      ? 'send'
+      : selected
+        ? primaryFor(selected.runtime.state)
+        : 'send'
   const teamLoginStrip =
     Object.keys(agents).length === 0 &&
     false /* fake may not expose global auth; M2 first-run strip optional with empty team */
@@ -577,7 +659,16 @@ export function App() {
                 </div>
               ))}
             </div>
-            <PartTimeline turns={selected.turns as never} />
+            <PartTimeline
+              turns={selected.turns as never}
+              answerChatPartId={
+                answerChat && answerChat.agentId === selected.agent.id ? answerChat.partId : null
+              }
+              onAskAnswer={(partId, answers) => void sendAskAnswer(partId, answers)}
+              onAskAnswerInChat={(partId) =>
+                setAnswerChat({ agentId: selected.agent.id, partId })
+              }
+            />
             <HarnessSwitcher
               harness={selected.agent.harness}
               disabled={selected.runtime.state === 'thinking' || selected.runtime.state === 'needs-you'}
