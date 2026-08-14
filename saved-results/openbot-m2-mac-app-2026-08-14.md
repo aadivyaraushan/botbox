@@ -27,3 +27,5 @@ All green locally (2026-08-14). Real-window screenshot: `saved-results/openbot-m
 - No `Chrome.tsx` (M5). No M2b packaging.
 - CI: Ubuntu runs app Vitest; `app-e2e` on macos-14 runs `--project=ci` (ignores login-ax).
 - Preload builds as `index.cjs` because package `"type": "module"` would break CJS `require` in `.js` preload.
+
+**PR:** https://github.com/aadivyaraushan/botbox/pull/5
