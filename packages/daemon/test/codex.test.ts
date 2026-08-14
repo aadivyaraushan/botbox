@@ -284,8 +284,13 @@ describe('codex adapter runCodexTurn', () => {
               tokenUsage: { last: { inputTokens: 3, outputTokens: 1 }, modelContextWindow: 100 },
             },
           })
+          // Auth must be durable before turn/completed — wait loop can resolve on turnFinished
+          // and copy-back races a truncated writeFile.
+          const authPath = path.join(agentHome, 'auth.json')
+          const authTmp = authPath + '.tmp'
+          await fsp.writeFile(authTmp, '{"v":2}', 'utf8')
+          await fsp.rename(authTmp, authPath)
           write({ method: 'turn/completed', params: { turn: { id: 'turn-1', status: 'completed' } } })
-          await fsp.writeFile(path.join(agentHome, 'auth.json'), '{"v":2}', 'utf8')
           ee.exitCode = 0
           ee.emit('exit', 0)
           break

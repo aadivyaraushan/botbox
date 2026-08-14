@@ -407,6 +407,7 @@ export function runCodexTurn(opts: CodexRunTurnOptions): CodexRunTurnHandle {
         usage,
       })
     } finally {
+      await lineChain
       await copyAgentAuthToShared({
         sharedCodexHome: opts.sharedCodexHome,
         agentCodexHome: opts.agentCodexHome,
