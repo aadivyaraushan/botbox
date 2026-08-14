@@ -18,6 +18,14 @@ type Conn = {
   envelopeId: number
   lastRequests: Array<Record<string, unknown>>
   loggedOutOnCreate: boolean
+  peerUnread?: {
+    agentId: string
+    turnId: string
+    partId: string
+    peerAgentId: string
+    peerName: string
+    text: string
+  }
 }
 
 type AskQuestion = {
@@ -216,8 +224,12 @@ wss.on('connection', (ws, req) => {
   if (scenario === 'peer') {
     const ada = makeAgent('Ada')
     const bea = makeAgent('Bea')
+    const adaTurnId = randomUUID()
+    const beaTurnId = randomUUID()
+    const adaPartId = randomUUID()
+    const beaPartId = randomUUID()
     ada.turns.push({
-      id: randomUUID(),
+      id: adaTurnId,
       seq: 2,
       agentId: ada.agent.id,
       role: 'assistant',
@@ -225,7 +237,7 @@ wss.on('connection', (ws, req) => {
       parts: [
         {
           type: 'peer-message',
-          id: randomUUID(),
+          id: adaPartId,
           peerAgentId: bea.agent.id,
           peerName: 'Bea',
           direction: 'sent',
@@ -235,7 +247,7 @@ wss.on('connection', (ws, req) => {
       createdAt: new Date().toISOString(),
     })
     bea.turns.push({
-      id: randomUUID(),
+      id: beaTurnId,
       seq: 2,
       agentId: bea.agent.id,
       role: 'assistant',
@@ -243,7 +255,7 @@ wss.on('connection', (ws, req) => {
       parts: [
         {
           type: 'peer-message',
-          id: randomUUID(),
+          id: beaPartId,
           peerAgentId: ada.agent.id,
           peerName: 'Ada',
           direction: 'received',
@@ -254,6 +266,14 @@ wss.on('connection', (ws, req) => {
     })
     conn.agents.set(ada.agent.id, ada)
     conn.agents.set(bea.agent.id, bea)
+    conn.peerUnread = {
+      agentId: bea.agent.id,
+      turnId: beaTurnId,
+      partId: beaPartId,
+      peerAgentId: ada.agent.id,
+      peerName: 'Ada',
+      text: 'Please help',
+    }
   }
 
   ws.on('message', (raw) => {
@@ -532,6 +552,25 @@ wss.on('connection', (ws, req) => {
         return
       }
       reply({ ok: true, turns: row.turns, lastEnvelopeId: conn.envelopeId })
+      if (conn.peerUnread && row.agent.name === 'Ada') {
+        const u = conn.peerUnread
+        conn.peerUnread = undefined
+        push(
+          ws,
+          conn,
+          u.agentId,
+          'harness',
+          {
+            kind: 'peer-message',
+            partId: u.partId,
+            peerAgentId: u.peerAgentId,
+            peerName: u.peerName,
+            direction: 'received',
+            text: u.text,
+          },
+          u.turnId,
+        )
+      }
       return
     }
 
