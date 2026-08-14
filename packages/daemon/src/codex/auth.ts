@@ -24,7 +24,10 @@ export async function copyAgentAuthToShared(opts: {
   const dest = path.join(opts.sharedCodexHome, 'auth.json')
   try {
     await fs.mkdir(opts.sharedCodexHome, { recursive: true })
-    await fs.copyFile(src, dest)
+    const body = await fs.readFile(src)
+    const tmp = dest + '.tmp'
+    await fs.writeFile(tmp, body)
+    await fs.rename(tmp, dest)
   } catch (e) {
     const err = e as NodeJS.ErrnoException
     if (err.code !== 'ENOENT') throw e

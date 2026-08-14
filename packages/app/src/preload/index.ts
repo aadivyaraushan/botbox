@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('openbot', {
     back: (p: { tabId: string }) => ipcRenderer.invoke('browser:back', p),
     forward: (p: { tabId: string }) => ipcRenderer.invoke('browser:forward', p),
     reload: (p: { tabId: string }) => ipcRenderer.invoke('browser:reload', p),
+    destroy: (p: { tabId: string }) => ipcRenderer.invoke('browser:destroy', p),
     setBounds: (p: {
       agentId: string
       tabId: string
@@ -44,6 +45,7 @@ contextBridge.exposeInMainWorld('openbot', {
     create: (p: { agentId: string; tabId: string }) => ipcRenderer.invoke('terminal:create', p),
     write: (p: { tabId: string; data: string }) => ipcRenderer.invoke('terminal:write', p),
     focus: (p: { agentId: string; tabId: string }) => ipcRenderer.invoke('terminal:focus', p),
+    kill: (p: { tabId: string }) => ipcRenderer.invoke('terminal:kill', p),
     onData: (cb: (ev: { tabId: string; data: string }) => void) => {
       const handler = (_: unknown, ev: { tabId: string; data: string }) => cb(ev)
       ipcRenderer.on('terminal:data', handler)

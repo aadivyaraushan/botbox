@@ -130,6 +130,8 @@ export function App() {
   const [renameId, setRenameId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [tabsByAgent, setTabsByAgent] = useState<Record<string, RightTab[]>>({})
+  const tabsRef = useRef(tabsByAgent)
+  tabsRef.current = tabsByAgent
   const [activeByAgent, setActiveByAgent] = useState<Record<string, string | null>>({})
   const [toast, setToast] = useState<string | null>(null)
   const [filesSearchToken, setFilesSearchToken] = useState(0)
@@ -177,13 +179,19 @@ export function App() {
   )
 
   const closeTab = useCallback((agentId: string, tabId: string) => {
-    setTabsByAgent((prev) => {
-      const cur = prev[agentId] ?? []
-      const next = cur.filter((x) => x.id !== tabId)
-      const activeNext = next[next.length - 1]?.id ?? null
-      setActiveByAgent((a) => ({ ...a, [agentId]: activeNext }))
-      return { ...prev, [agentId]: next }
-    })
+    const closing = tabsRef.current[agentId]?.find((t) => t.id === tabId)
+    void (async () => {
+      if (closing?.kind === 'browser') await window.openbot.browser.destroy({ tabId })
+      if (closing?.kind === 'terminal') await window.openbot.terminal.kill({ tabId })
+      setTabsByAgent((prev) => {
+        const cur = prev[agentId] ?? []
+        if (!cur.some((x) => x.id === tabId)) return prev
+        const next = cur.filter((x) => x.id !== tabId)
+        const activeNext = next[next.length - 1]?.id ?? null
+        setActiveByAgent((a) => ({ ...a, [agentId]: activeNext }))
+        return { ...prev, [agentId]: next }
+      })
+    })()
   }, [])
 
   const attentionCount = useMemo(() => {
