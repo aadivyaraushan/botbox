@@ -16,9 +16,18 @@ jobs:
           cache: pnpm
       - run: pnpm install
       - run: pnpm typecheck
-      # Coverage floor (v8 lines≥80) on protocol. No extra `--` after `test`:
-      # vitest would treat `--coverage` as a file filter and the 80% gate would
-      # never run. Add `--filter @openbot/daemon` only once that package exists.
-      # Do not `pnpm -r test --coverage` — `packages/app` is Playwright later.
-      - run: pnpm --filter @openbot/protocol test --coverage
-      - run: pnpm --filter @openbot/daemon test --coverage
+      - run: pnpm --filter @openbot/protocol --filter @openbot/daemon test --coverage
+      - run: pnpm --filter @openbot/app test
+
+  app-e2e:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install
+      - run: pnpm --filter @openbot/app build
+      - run: pnpm --filter @openbot/app test:e2e -- --project=ci

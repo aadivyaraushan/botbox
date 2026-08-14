@@ -6,3 +6,6 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 .cursor/
+packages/app/out/
+packages/app/test-results/
+packages/app/playwright-report/
