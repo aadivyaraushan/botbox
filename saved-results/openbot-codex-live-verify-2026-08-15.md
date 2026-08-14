@@ -26,21 +26,23 @@ Precondition: `CODEX_HOME=~/.openbot/codex-home codex login status` → `Logged 
 ```json
 {
   "ok": true,
-  "agentId": "316a3f81-4f50-4839-b1c8-f497bb8e313f",
-  "slug": "codexlive6959",
+  "agentId": "cc20806c-8a48-4767-ae69-f8144df3c407",
+  "slug": "codexlive76739",
   "harness": "codex",
   "turnFinished": true,
-  "assistantSnippet": "OPENBOT_CODEX_LIVE is active.…",
+  "assistantSnippet": "OPENBOT_CODEX_LIVE.…",
   "askSeen": true,
-  "askPartId": "call_IviAwDEVjiwYQIkCmCFMBhSc",
+  "askPartId": "call_QoFcKBovw8qF9ToNbUg80ja7",
   "askError": null,
   "files": ["role.md", "MEMORY.md"],
-  "rolePreview": "# CodexLive6959\n\n\n",
+  "rolePreview": "# CodexLive76739\n\n\n",
   "home": "/Users/aadivyar/.openbot",
-  "port": 18846,
+  "port": 18866,
   "auth": "/Users/aadivyar/.openbot/codex-home/auth.json"
 }
 ```
+
+Re-run after merging `origin/main` (packaged-daemon PR #12) on 2026-08-15; exit 0.
 
 Notes from the same run: Hindsight MCP recall failed (skipHindsightSpawn daemon; expected noise). Codex logged MCP transport errors to `127.0.0.1:8888` while memory was down; turn + ask still completed.
 
