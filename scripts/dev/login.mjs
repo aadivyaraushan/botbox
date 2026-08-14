@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import { WebSocket } from 'ws'
 import { randomUUID } from 'node:crypto'
+import {
+  exitCodeFor,
+  formatPreflightFailure,
+  runLoginScreenPreflight,
+} from './login-screen-preflight.mjs'
 
 const token = process.env.OPENBOT_ADMIN_TOKEN
 if (!token) {
@@ -15,6 +20,14 @@ if (!agentId) {
   process.exit(1)
 }
 
+if (process.platform === 'darwin') {
+  const { result } = runLoginScreenPreflight()
+  if (!result.ok) {
+    console.error(formatPreflightFailure(result))
+    process.exit(exitCodeFor(result))
+  }
+}
+
 const ws = new WebSocket(`ws://127.0.0.1:${port}/?token=${token}`)
 ws.on('open', () => {
   ws.send(JSON.stringify({ id: randomUUID(), type: 'harness.startLogin', agentId, harness }))
@@ -25,7 +38,12 @@ ws.on('message', (data) => {
     console.log(msg.event.url)
     if (process.platform === 'darwin') {
       import('node:child_process').then(({ spawn }) => {
-        spawn('open', ['-a', 'Google Chrome', '--', msg.event.url], { stdio: 'ignore' })
+        const args = ['-a', 'Google Chrome', '--', msg.event.url]
+        if (!args[3]?.startsWith('http')) {
+          console.error('[login.mjs] refusing non-http login URL')
+          process.exit(1)
+        }
+        spawn('open', args, { stdio: 'ignore' })
       })
     }
   }
