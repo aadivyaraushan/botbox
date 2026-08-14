@@ -18,6 +18,7 @@ type OpenBotApi = {
     back: (p: { tabId: string }) => Promise<unknown>
     forward: (p: { tabId: string }) => Promise<unknown>
     reload: (p: { tabId: string }) => Promise<unknown>
+    destroy: (p: { tabId: string }) => Promise<unknown>
     setBounds: (p: {
       agentId: string
       tabId: string
@@ -28,6 +29,7 @@ type OpenBotApi = {
     create: (p: { agentId: string; tabId: string }) => Promise<unknown>
     write: (p: { tabId: string; data: string }) => Promise<unknown>
     focus: (p: { agentId: string; tabId: string }) => Promise<unknown>
+    kill: (p: { tabId: string }) => Promise<unknown>
     onData: (cb: (ev: { tabId: string; data: string }) => void) => () => void
   }
   onBrowserTabNeeded: (cb: (ev: { agentId: string; tabId: string }) => void) => () => void

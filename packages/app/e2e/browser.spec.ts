@@ -78,9 +78,10 @@ test.describe('OpenBot M5 browser + terminal', () => {
     await page.getByTestId('allow-site').click()
     await expect(page.getByTestId('banner-needs-site')).toHaveCount(0)
 
-    // URL bar shows typed destination (navigate kicked; do not block on network)
-    await page.getByTestId('browser-url').fill('https://example.com')
-    await expect(page.getByTestId('browser-url')).toHaveValue(/example\.com/)
+    // Submit URL bar (form navigate) — must not only assert the fill value
+    await page.getByTestId('browser-url').fill('https://example.com/')
+    await page.getByTestId('browser-url').press('Enter')
+    await expect(page.getByTestId('browser-url')).toHaveValue(/example\.com/, { timeout: 15_000 })
 
     // Take control / Return control (pane only)
     await page.getByTestId('take-control').click()
@@ -88,22 +89,19 @@ test.describe('OpenBot M5 browser + terminal', () => {
     await page.getByTestId('return-control').click()
     await expect(page.getByTestId('youre-driving')).toHaveCount(0)
 
-    // browser.exec with no tab forces visible tab — close all first
+    // browser.exec with no tab forces visible tab — close all first; no silent menu fallback
     const closes = page.locator('[data-testid^="tab-close-"]')
     while ((await closes.count()) > 0) {
+      const before = await closes.count()
       await closes.first().click()
+      await expect.poll(async () => closes.count(), { timeout: 5_000 }).toBeLessThan(before)
     }
     await expect(page.getByTestId('right-pane')).toHaveCount(0)
     await page.request.get(
       `http://127.0.0.1:18799/debug/browser-exec?agentId=${id}&slug=ada&url=https://example.com/`,
     )
-    try {
-      await expect(page.getByTestId('tab-browser')).toBeVisible({ timeout: 8_000 })
-    } catch {
-      // Fallback visibility path: menu open still works (covered above); force via menu for remainder
-      await clickMenu(app, ['View', 'Browser'])
-      await expect(page.getByTestId('tab-browser')).toBeVisible()
-    }
+    await expect(page.getByTestId('tab-browser')).toBeVisible({ timeout: 8_000 })
+    await expect(page.getByTestId('browser-chrome')).toBeVisible()
 
     // Ctrl+` terminal
     await page.keyboard.press('Control+`')
@@ -123,8 +121,11 @@ test.describe('OpenBot M5 browser + terminal', () => {
     expect(String(body.text ?? '').length).toBeGreaterThan(0)
 
     // close last tab closes pane
-    while ((await page.locator('[data-testid^="tab-close-"]').count()) > 0) {
-      await page.locator('[data-testid^="tab-close-"]').first().click()
+    const endCloses = page.locator('[data-testid^="tab-close-"]')
+    while ((await endCloses.count()) > 0) {
+      const before = await endCloses.count()
+      await endCloses.first().click()
+      await expect.poll(async () => endCloses.count(), { timeout: 5_000 }).toBeLessThan(before)
     }
     await expect(page.getByTestId('right-pane')).toHaveCount(0)
 

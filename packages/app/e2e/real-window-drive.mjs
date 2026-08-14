@@ -1,4 +1,8 @@
-
+/**
+ * Fake-daemon chrome smoke only. Not harness verification.
+ * Real-daemon browser/terminal: packages/app/scripts/m5-real-surface.mjs
+ * Real-daemon Files: packages/app/scripts/m6-real-surface.mjs
+ */
 import { _electron as electron } from '@playwright/test'
 import { mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -45,10 +49,10 @@ const plusHost = page.getByTestId('right-pane-plus-only').or(page.getByTestId('r
 await plusHost.getByTestId('plus-menu').getByRole('button', { name: 'Add tab' }).click()
 checks.browserEnabled = await page.getByTestId('plus-browser').isEnabled()
 checks.terminalEnabled = await page.getByTestId('plus-terminal').isEnabled()
-checks.filesDisabled = await page.getByTestId('plus-files').isDisabled()
+checks.filesEnabled = await page.getByTestId('plus-files').isEnabled()
 await page.getByTestId('plus-browser').click()
 checks.browserChrome = await page.getByTestId('browser-chrome').isVisible()
-const shot = join(root, '../../saved-results/openbot-m5-real-window-2026-08-14.png')
+const shot = join(root, '../../saved-results/openbot-m5-fake-window-smoke-2026-08-15.png')
 await page.screenshot({ path: shot, fullPage: true })
 const unread = await app.evaluate(() => {
   const g = globalThis
@@ -56,7 +60,7 @@ const unread = await app.evaluate(() => {
   return g.getTrayUnread()
 })
 checks.trayUnread = unread === true
-console.log(JSON.stringify({ checks, shot }, null, 2))
+console.log(JSON.stringify({ checks, shot, daemon: 'fake', note: 'not harness verify' }, null, 2))
 await app.close()
 fake.kill()
 process.exit(Object.values(checks).every(Boolean) ? 0 : 1)

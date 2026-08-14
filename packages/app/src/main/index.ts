@@ -233,14 +233,17 @@ void app.whenReady().then(() => {
     browserManager.reload(p.tabId)
     return { ok: true }
   })
+  ipcMain.handle('browser:destroy', (_e, p: { tabId: string }) => {
+    browserManager.destroy(p.tabId)
+    return { ok: true }
+  })
   ipcMain.handle(
     'browser:setBounds',
     (
       _e,
       p: { agentId: string; tabId: string; rect: { x: number; y: number; width: number; height: number } },
     ) => {
-      const slug = agentSlug.get(p.agentId) ?? 'agent'
-      browserManager.ensureTab({ agentId: p.agentId, slug, tabId: p.tabId })
+      // Do not ensureTab here: Chrome unmount setBounds must not recreate a destroyed view.
       browserManager.setBounds(p.agentId, p.tabId, p.rect)
       return { ok: true }
     },
@@ -269,6 +272,10 @@ void app.whenReady().then(() => {
   })
   ipcMain.handle('terminal:focus', (_e, p: { agentId: string; tabId: string }) => {
     ptyManager.focus(p.agentId, p.tabId)
+    return { ok: true }
+  })
+  ipcMain.handle('terminal:kill', (_e, p: { tabId: string }) => {
+    ptyManager.kill(p.tabId)
     return { ok: true }
   })
 
