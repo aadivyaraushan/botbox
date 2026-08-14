@@ -1577,7 +1577,7 @@ Tests **before** implementation for each slice. After each slice that has a scre
 1. Run §5.5.8 `scripts/dev/bundle-hindsight.sh` with packaging `DEST=resources/hindsight` so `hindsight-pin.json` `treeSha256` matches that tree (dev DEST must not overwrite the pin).
 2. Ensure §5.5.7 helper exists at `packages/app/helpers/openbot-axclick` (`swiftc` as in M2).
 3. Add packager files (paste bodies below — paths are under `packages/app/`; yaml paths are relative to that package).
-4. Package with electron-builder (`mac.identity: null` for this milestone).
+4. Package with electron-builder (`mac.identity: "-"` — ad-hoc codesign that **does** sign with entitlements; **not** `null`, which skips signing and leaves the stock Electron linker signature `Identifier=Electron` with no entitlements). Prior M2b packages that used `identity: null` shipped that linker-signed Electron binary; treat as a known discrepancy, not intended ad-hoc.
 5. **Re-grant** Accessibility + Screen Recording for this new ad-hoc binary, then run Allow-click E2E.
 6. Arch: reuse `packages/app/src/main/arch.ts` — Intel shows blocking copy and does not start daemon.
 7. After first successful package: measure app size and write `saved-results/openbot-app-size-YYYY-MM-DD.md` (keep full Hindsight — **no size cap**).
@@ -1594,7 +1594,7 @@ mac:
   target:
     - dmg
     - zip
-  identity: null
+  identity: "-"
   hardenedRuntime: true
   entitlements: build/entitlements.mac.plist
   extendInfo:
@@ -1607,6 +1607,8 @@ extraResources:
     to: daemon
 afterPack: scripts/after-pack.cjs
 ```
+
+**Signing lock (electron-builder 26.x):** `identity: "-"` = ad-hoc codesign (`codesign` convention; see electron.build mac docs). `identity: null` = **skip** signing entirely. Keep `hardenedRuntime: true` + `entitlements.mac.plist` (no App Sandbox). Still **not** MAS / **not** Developer-ID. After each ad-hoc rebuild, re-grant Accessibility + Screen Recording (do **not** chase a stable ad-hoc identity). Verify must assert `codesign -d` `Identifier=com.openbot.app` and non-empty embedded entitlements — CFBundleIdentifier alone is not enough (linker-signed Electron kept `com.openbot.app` in Info.plist while `Identifier=Electron`).
 
 **Packaged daemon (locked):** before `electron-builder`, `scripts/dev/bundle-daemon.mjs` esbuilds `packages/daemon/src/main.ts` → `resources/daemon/main.mjs` and copies sidecar assets (`memory/*.md`, `harness/compact-prompt.md`, `claude/models.json` as `models.json`, `scripts/dev/print-login-url.mjs`). Packaged spawn uses `process.resourcesPath/daemon/main.mjs` + `ELECTRON_RUN_AS_NODE=1` + `process.execPath` (§3.5).
 
@@ -1711,7 +1713,7 @@ CI (`.github/workflows/ci.yml`): keep the existing `test` job on `ubuntu-latest`
 
 ## 10. Out of scope for this plan
 
-Phone, Windows, Linux app, Intel Mac (v1 Apple Silicon only), Atlas-like standalone browser, Chrome extension, Composio, routines/cron, spend auto-cut, writing Chromium, pinning/forking an OSS browser-shell package (thin `Chrome.tsx` is in scope), remote desktop, group rooms, joining A↔B as a third speaker, **Review tab** (and Ctrl+Shift+G), **Plan mode / `/plan`**, peer-loop auto-pause, Hindsight Cloud / Hindsight’s own UI, extra API keys for memory, quiet memory-off, App Sandbox / Mac App Store distribution, `cliclick`, packaged-app **size cap** (measure only). M2 day-to-day still runs electron-vite from this repo (`pnpm --filter @openbot/app dev` or Playwright `electron.launch`). **M2b** = electron-builder package (`appId` **`com.openbot.app`**) + **ad-hoc / local signing** (`mac.identity: null`) + Allow-click E2E + size record; **re-grant** Accessibility + Screen Recording after each ad-hoc rebuild. **Follow-on (not M2b blocker):** Developer-ID signing + notarize for wider distribution. Packaging must finish before stranger test (**M7** runs on the ad-hoc build; same re-grant rule).
+Phone, Windows, Linux app, Intel Mac (v1 Apple Silicon only), Atlas-like standalone browser, Chrome extension, Composio, routines/cron, spend auto-cut, writing Chromium, pinning/forking an OSS browser-shell package (thin `Chrome.tsx` is in scope), remote desktop, group rooms, joining A↔B as a third speaker, **Review tab** (and Ctrl+Shift+G), **Plan mode / `/plan`**, peer-loop auto-pause, Hindsight Cloud / Hindsight’s own UI, extra API keys for memory, quiet memory-off, App Sandbox / Mac App Store distribution, `cliclick`, packaged-app **size cap** (measure only). M2 day-to-day still runs electron-vite from this repo (`pnpm --filter @openbot/app dev` or Playwright `electron.launch`). **M2b** = electron-builder package (`appId` **`com.openbot.app`**) + **ad-hoc / local signing** (`mac.identity: "-"` — not `null`) + Allow-click E2E + size record; **re-grant** Accessibility + Screen Recording after each ad-hoc rebuild. **Follow-on (not M2b blocker):** Developer-ID signing + notarize for wider distribution. Packaging must finish before stranger test (**M7** runs on the ad-hoc build; same re-grant rule).
 
 ---
 

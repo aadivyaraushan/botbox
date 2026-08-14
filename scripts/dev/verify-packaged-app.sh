@@ -47,9 +47,28 @@ DAEMON_ENTRY="$APP/Contents/Resources/daemon/main.mjs"
 [ -f "$DAEMON_ENTRY" ] || fail "missing Resources/daemon/main.mjs"
 ok "daemon/main.mjs"
 
+# Ad-hoc codesign must rewrite Identifier to appId. identity:null left Identifier=Electron
+# (linker-signed) with no entitlements while Info.plist still said com.openbot.app.
+CS_ID="$(codesign -dv "$APP" 2>&1 | sed -n 's/^Identifier=//p' | head -1)"
+[ -n "$CS_ID" ] || fail "codesign -dv produced no Identifier"
+[ "$CS_ID" = "com.openbot.app" ] || fail "codesign Identifier=$CS_ID (want com.openbot.app; Electron=linker-signed skip)"
+ok "codesign Identifier=com.openbot.app"
+
+ENT_OUT="$(mktemp)"
+trap 'rm -f "$ENT_OUT"' EXIT
+if ! codesign -d --entitlements "$ENT_OUT" "$APP" 2>/dev/null; then
+  fail "codesign -d --entitlements failed"
+fi
+[ -s "$ENT_OUT" ] || fail "embedded entitlements empty (signing skipped?)"
+ENT_DUMP="$(codesign -d --entitlements :- "$APP" 2>/dev/null || true)"
+echo "$ENT_DUMP" | grep -q 'com.apple.security.cs.allow-jit' \
+  || fail "missing entitlement com.apple.security.cs.allow-jit"
+echo "$ENT_DUMP" | grep -q 'com.apple.security.automation.apple-events' \
+  || fail "missing entitlement com.apple.security.automation.apple-events"
+ok "embedded entitlements present"
 
 # No App Sandbox entitlement expected in entitlements source; refuse sandbox string in signed entitlements if present
-if codesign -d --entitlements :- "$APP" 2>/dev/null | grep -q 'app-sandbox'; then
+if echo "$ENT_DUMP" | grep -q 'app-sandbox'; then
   fail "App Sandbox entitlement present"
 fi
 ok "no App Sandbox"
