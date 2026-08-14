@@ -476,11 +476,12 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, addTab, closeTab, activeByAgent, tabsByAgent])
 
+  const selectedPresent = Boolean(selectedId && agents[selectedId])
+  const selectedHistoryLoaded = selectedId ? Boolean(agents[selectedId]?.historyLoaded) : true
+
   useEffect(() => {
-    if (!selectedId) return
-    const a = agents[selectedId]
-    if (!a) return
-    if (!a.historyLoaded) void loadHistory(selectedId)
+    if (!selectedId || !selectedPresent) return
+    if (!selectedHistoryLoaded) void loadHistory(selectedId)
     void loadModels(selectedId)
     void loadSkills(selectedId)
     void (async () => {
@@ -501,7 +502,7 @@ export function App() {
         }
       })
     })()
-  }, [selectedId])
+  }, [selectedId, selectedPresent, selectedHistoryLoaded, loadHistory, loadModels, loadSkills])
 
   const rows = Object.values(agents).map((a) => ({
     id: a.agent.id,
@@ -534,6 +535,7 @@ export function App() {
     const agent = res.agent as AgentConfig
     setSelectedId(agent.id)
     await refreshList()
+    await loadHistory(agent.id)
     return null
   }
 
