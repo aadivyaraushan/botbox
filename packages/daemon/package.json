@@ -1,0 +1,33 @@
+{
+  "name": "@openbot/daemon",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/main.ts",
+    "./wire": "./src/wire/framing.ts",
+    "./turns": "./src/turns/reducer.ts"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.232",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@openbot/protocol": "workspace:*",
+    "shell-quote": "1.10.0",
+    "ws": "8.21.3",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "@types/shell-quote": "1.7.5",
+    "@types/ws": "8.18.1",
+    "@vitest/coverage-v8": "^3.2.4",
+    "tsx": "4.23.12",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.4"
+  }
+}
