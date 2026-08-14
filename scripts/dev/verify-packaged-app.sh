@@ -35,6 +35,14 @@ ok "hindsight/bin/hindsight-api"
 [ -d "$APP/Contents/Resources/hindsight/hf-cache" ] || fail "missing hindsight/hf-cache"
 ok "hindsight python + hf-cache"
 
+# Refuse stub-class trees (~4KB). Real bake is ~2GB class (plan M2b / composed proof).
+H_KB="$(du -sk "$APP/Contents/Resources/hindsight" | awk '{print $1}')"
+# 100MB floor in KB
+if [ "$H_KB" -lt 102400 ]; then
+  fail "hindsight tree is ${H_KB}KB (stub class); need real ~2GB bake"
+fi
+ok "hindsight size=${H_KB}KB (not stub)"
+
 DAEMON_ENTRY="$APP/Contents/Resources/daemon/main.mjs"
 [ -f "$DAEMON_ENTRY" ] || fail "missing Resources/daemon/main.mjs"
 ok "daemon/main.mjs"
