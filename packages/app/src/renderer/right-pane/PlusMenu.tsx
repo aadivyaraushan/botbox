@@ -4,9 +4,15 @@ type Props = {
   onPick: (kind: 'browser' | 'terminal' | 'files') => void
   browserEnabled?: boolean
   terminalEnabled?: boolean
+  filesEnabled?: boolean
 }
 
-export function PlusMenu({ onPick, browserEnabled = true, terminalEnabled = true }: Props) {
+export function PlusMenu({
+  onPick,
+  browserEnabled = true,
+  terminalEnabled = true,
+  filesEnabled = true,
+}: Props) {
   const [open, setOpen] = useState(false)
   return (
     <div className="plus-menu" data-testid="plus-menu">
@@ -41,10 +47,13 @@ export function PlusMenu({ onPick, browserEnabled = true, terminalEnabled = true
           </button>
           <button
             type="button"
-            disabled
-            title="Coming in a later build"
+            disabled={!filesEnabled}
+            title={filesEnabled ? undefined : 'Coming in a later build'}
             data-testid="plus-files"
-            onClick={() => onPick('files')}
+            onClick={() => {
+              onPick('files')
+              setOpen(false)
+            }}
           >
             Files
           </button>

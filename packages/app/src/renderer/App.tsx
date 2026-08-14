@@ -138,6 +138,7 @@ export function App() {
   const [tabsByAgent, setTabsByAgent] = useState<Record<string, RightTab[]>>({})
   const [activeByAgent, setActiveByAgent] = useState<Record<string, string | null>>({})
   const [toast, setToast] = useState<string | null>(null)
+  const [filesSearchToken, setFilesSearchToken] = useState(0)
   const [answerChat, setAnswerChat] = useState<{ agentId: string; partId: string } | null>(null)
   const streamStarted = useRef(false)
   const lastEnvelopeId = useRef(0)
@@ -441,6 +442,19 @@ export function App() {
         e.preventDefault()
         if (selectedId) addTab(selectedId, 'terminal')
       }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'p') {
+        e.preventDefault()
+        if (selectedId) {
+          const tabs = tabsByAgent[selectedId] ?? []
+          const hasFiles = tabs.some((t) => t.kind === 'files')
+          if (!hasFiles) addTab(selectedId, 'files')
+          else {
+            const filesTab = tabs.find((t) => t.kind === 'files')
+            if (filesTab) setActiveByAgent((prev) => ({ ...prev, [selectedId]: filesTab.id }))
+          }
+          setFilesSearchToken((n) => n + 1)
+        }
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'w') {
         const active = selectedId ? activeByAgent[selectedId] : null
         if (selectedId && active) {
@@ -460,13 +474,14 @@ export function App() {
       window.removeEventListener('keydown', onKey)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, addTab, closeTab, activeByAgent])
+  }, [selectedId, addTab, closeTab, activeByAgent, tabsByAgent])
+
+  const selectedPresent = Boolean(selectedId && agents[selectedId])
+  const selectedHistoryLoaded = selectedId ? Boolean(agents[selectedId]?.historyLoaded) : true
 
   useEffect(() => {
-    if (!selectedId) return
-    const a = agents[selectedId]
-    if (!a) return
-    if (!a.historyLoaded) void loadHistory(selectedId)
+    if (!selectedId || !selectedPresent) return
+    if (!selectedHistoryLoaded) void loadHistory(selectedId)
     void loadModels(selectedId)
     void loadSkills(selectedId)
     void (async () => {
@@ -487,7 +502,7 @@ export function App() {
         }
       })
     })()
-  }, [selectedId])
+  }, [selectedId, selectedPresent, selectedHistoryLoaded, loadHistory, loadModels, loadSkills])
 
   const rows = Object.values(agents).map((a) => ({
     id: a.agent.id,
@@ -518,21 +533,9 @@ export function App() {
       return 'Couldn’t create agent. Try again.'
     }
     const agent = res.agent as AgentConfig
-    const runtime = res.runtime as Runtime
-    const banners = (res.banners as Banner[]) ?? []
-    setAgents((prev) => ({
-      ...prev,
-      [agent.id]: {
-        agent,
-        runtime,
-        banners,
-        turns: [],
-        unread: false,
-        historyLoaded: false,
-      },
-    }))
     setSelectedId(agent.id)
     await refreshList()
+    await loadHistory(agent.id)
     return null
   }
 
@@ -842,9 +845,10 @@ export function App() {
           onSelect={(id) => selectedId && setActiveByAgent((prev) => ({ ...prev, [selectedId]: id }))}
           onClose={(id) => selectedId && closeTab(selectedId, id)}
           onPick={(kind) => {
-            if (!selectedId || kind === 'files') return
+            if (!selectedId) return
             addTab(selectedId, kind)
           }}
+          filesSearchToken={filesSearchToken}
           onUrlChange={(tabId, url) => {
             if (!selectedId) return
             setTabsByAgent((prev) => ({
@@ -872,9 +876,9 @@ export function App() {
           <div className="tab-strip">
             <PlusMenu
               onPick={(kind) => {
-                if (kind === 'files') return
                 addTab(selectedId, kind)
               }}
+              filesEnabled
             />
           </div>
         </div>

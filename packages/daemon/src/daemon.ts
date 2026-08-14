@@ -22,6 +22,7 @@ import { loadClaudeCatalog, loadCodexCatalog, contextWindowFor } from './claude/
 import { createAgent, deleteAgent, renameAgent } from './team/create-delete.js'
 import { ensureTeamFile, setFast, writeTeam } from './team/store.js'
 import { listSkills } from './team/skills.js'
+import { listAgentFiles, readAgentFile } from './team/files.js'
 import { HindsightClient } from './memory/hindsight-client.js'
 import { resolveLlmProvider, spawnHindsight } from './memory/hindsight-spawn.js'
 import { formatRecallBlock, retainAndSnapshot } from './memory/snapshot.js'
@@ -552,6 +553,10 @@ export class Daemon {
         return this.handleSetFast(value)
       case 'agent.skills':
         return this.handleSkills(value)
+      case 'agent.files':
+        return this.handleFiles(value)
+      case 'agent.readFile':
+        return this.handleReadFile(value)
       case 'agent.models':
         return this.handleModels(value)
       case 'agent.setModel':
@@ -703,6 +708,22 @@ export class Daemon {
     if (!agent) return { ok: false, error: 'agent-not-found' }
     const skills = await listSkills(agent, this.home)
     return { ok: true, skills }
+  }
+
+  private async handleFiles(value: Record<string, unknown>) {
+    const agentId = String(value.agentId ?? '')
+    const agent = this.team.find((a) => a.id === agentId)
+    if (!agent) return { ok: false, error: 'agent-not-found' }
+    const files = await listAgentFiles(this.home, agent)
+    return { ok: true, files }
+  }
+
+  private async handleReadFile(value: Record<string, unknown>) {
+    const agentId = String(value.agentId ?? '')
+    const agent = this.team.find((a) => a.id === agentId)
+    if (!agent) return { ok: false, error: 'agent-not-found' }
+    const relPath = String(value.path ?? '')
+    return readAgentFile(this.home, agent, relPath)
   }
 
   private handleModels(value: Record<string, unknown>) {
