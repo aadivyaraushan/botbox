@@ -6,7 +6,7 @@
 
 ## Result
 
-Live run succeeded: `ok: true`, all agent-driven checks true. Human-side checks still true. No plan revise (fixture-only was not claimed).
+Live run succeeded after merge with `origin/main`: `ok: true`, all agent-driven checks true. Human-side checks still true. No plan revise (fixture-only was not claimed).
 
 ```json
 {
@@ -25,10 +25,10 @@ Live run succeeded: `ok: true`, all agent-driven checks true. Human-side checks 
     "terminalRead": true,
     "harnessCodex": true
   },
-  "port": 18872,
+  "port": 18873,
   "daemon": "real",
   "harness": "codex",
-  "agentId": "b8a561f6-5d5e-465c-a0de-8dbe32ea8a14",
+  "agentId": "1c5fc5ff-2bc1-4f40-8a44-aba0a277a28b",
   "navResult": {
     "ok": true,
     "result": { "url": "https://example.org/", "title": "Example Domain" }
@@ -37,7 +37,7 @@ Live run succeeded: `ok: true`, all agent-driven checks true. Human-side checks 
     "ok": true,
     "result": { "url": "https://example.org/", "title": "Example Domain" }
   },
-  "shellResult": { "exitCode": 0, "tabId": "ec82e3e3-41d8-4300-b86e-1d763980af04" },
+  "shellResult": { "exitCode": 0, "tabId": "f8e03cb8-66a0-4c0d-b93b-dc90bb6c8a21" },
   "focusedBefore": true,
   "focusedAfter": true
 }
@@ -53,10 +53,12 @@ Live run succeeded: `ok: true`, all agent-driven checks true. Human-side checks 
 ```bash
 cd /path/to/grok-bot-clone-wt-p4-m5
 pnpm --filter @openbot/app build
-CODEX_HOME=~/.openbot/codex-home OPENBOT_PORT=18872 pnpm exec tsx packages/app/scripts/m5-real-surface.mjs
+CODEX_HOME=~/.openbot/codex-home OPENBOT_PORT=18873 pnpm exec tsx packages/app/scripts/m5-real-surface.mjs
 ```
 
 Requires `~/.openbot/codex-home/auth.json` (copied into the temp `OPENBOT_HOME/codex-home` for the run).
+
+Worktree: `/Users/aadivyar/Documents/Startups/grok-bot-clone-wt-p4-m5`
 
 ## Context
 
