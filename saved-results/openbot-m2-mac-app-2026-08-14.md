@@ -29,3 +29,7 @@ All green locally (2026-08-14). Real-window screenshot: `saved-results/openbot-m
 - Preload builds as `index.cjs` because package `"type": "module"` would break CJS `require` in `.js` preload.
 
 **PR:** https://github.com/aadivyaraushan/botbox/pull/5
+
+## CI fix
+
+Forced electron/install.js in app-e2e after pnpm install; PR checks green.
