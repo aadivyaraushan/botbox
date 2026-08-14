@@ -1,6 +1,7 @@
 import { test, expect, _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { waitForAgentName } from './helpers'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 
@@ -47,7 +48,7 @@ async function createAda(page: Page) {
   await page.getByTestId('new-agent').click()
   await page.getByTestId('new-agent-name').fill('Ada')
   await page.getByTestId('new-agent-submit').click()
-  await expect(page.getByTestId('agent-name')).toBeVisible()
+  await waitForAgentName(page, 'Ada')
 }
 
 test.describe('OpenBot M5 browser + terminal', () => {

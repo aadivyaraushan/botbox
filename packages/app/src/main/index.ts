@@ -20,6 +20,7 @@ import { isAppleSilicon } from './arch'
 import { buildAppMenu, sendToRenderer } from './menu'
 import { createTray, setTrayUnread, getTrayUnread } from './tray'
 import { notifyAgent } from './tray-notify'
+import { waitForWsOpen } from './daemon-ws-ready'
 
 let mainWindow: BrowserWindow | null = null
 let daemonChild: ChildProcess | null = null
@@ -86,10 +87,11 @@ function connectDaemon(url: string): void {
 }
 
 async function daemonRequest(body: Record<string, unknown>): Promise<Record<string, unknown>> {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
-    return { id: body.id, type: 'response', ok: false, error: 'not-connected' }
-  }
   const id = typeof body.id === 'string' ? body.id : randomUUID()
+  const ready = await waitForWsOpen(() => ws, { timeoutMs: 10_000, pollMs: 25 })
+  if (!ready || !ws || ws.readyState !== WebSocket.OPEN) {
+    return { id, type: 'response', ok: false, error: 'not-connected' }
+  }
   const msg = { ...body, id }
   return await new Promise((resolve) => {
     pending.set(id, resolve)

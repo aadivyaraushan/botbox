@@ -3,6 +3,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { waitForAgentName } from './helpers'
 
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const openbotHome = mkdtempSync(join(tmpdir(), 'openbot-m6-'))
@@ -27,7 +28,7 @@ async function createAda(page: Page) {
   await page.getByTestId('new-agent').click()
   await page.getByTestId('new-agent-name').fill('Ada')
   await page.getByTestId('new-agent-submit').click()
-  await expect(page.getByTestId('agent-name')).toBeVisible()
+  await waitForAgentName(page, 'Ada')
 }
 
 test.describe('OpenBot M6 files tabs', () => {
