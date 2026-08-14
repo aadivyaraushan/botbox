@@ -134,3 +134,23 @@ input, textarea { font-family: inherit; color: var(--ink); background: var(--bg-
 .file-row { text-align: left; padding: 6px 8px; border: none; background: transparent; color: var(--ink); font-size: 12px; font-family: var(--mono); border-radius: var(--radius); }
 .file-row:hover, .file-row.selected { background: var(--bg-3); }
 .files-preview { flex: 1; margin: 0; overflow: auto; padding: 8px; background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); font-family: var(--mono); font-size: 12px; white-space: pre-wrap; }
+
+
+.thread-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.jump-latest {
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--ink);
+  border-radius: 999px; padding: 6px 12px; font-size: 12px; z-index: 5;
+}
+.part-row.reasoning, .part-row.tool {
+  display: block; width: 100%; text-align: left; background: transparent;
+  border: none; color: inherit; cursor: pointer; padding: 0;
+}
+.tool-output { margin: 6px 0 0; white-space: pre-wrap; font-family: var(--mono); font-size: 12px; color: var(--ink); }
+.part-row.outcome.muted { color: var(--muted); }
+.memory-setup { padding: 10px 16px; color: var(--muted); font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+.memory-setup-bar {
+  height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--line), var(--accent), var(--line));
+  background-size: 200% 100%; animation: memory-pulse 1.2s linear infinite;
+}
+@keyframes memory-pulse { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }

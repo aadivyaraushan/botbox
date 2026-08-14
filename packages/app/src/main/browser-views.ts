@@ -5,9 +5,10 @@ import {
   session,
 } from 'electron'
 import { join } from 'node:path'
-import { appendFileSync, mkdirSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
+import { filterHistorySuggestions } from '../renderer/browser/suggest-url'
 
 export type BrowserTabView = {
   agentId: string
@@ -288,6 +289,24 @@ export class BrowserViewManager {
   }
   reload(tabId: string) {
     this.tabs.get(tabId)?.view.webContents.reload()
+  }
+
+  suggest(slug: string, q: string): { urls: string[] } {
+    const path = this.historyPath(slug)
+    if (!existsSync(path)) return { urls: [] }
+    const entries: Array<{ url: string; ts: number }> = []
+    for (const line of readFileSync(path, 'utf8').split('\n')) {
+      if (!line.trim()) continue
+      try {
+        const row = JSON.parse(line) as { url?: string; ts?: number }
+        if (typeof row.url === 'string' && typeof row.ts === 'number') {
+          entries.push({ url: row.url, ts: row.ts })
+        }
+      } catch {
+        /* skip bad line */
+      }
+    }
+    return { urls: filterHistorySuggestions(q, entries) }
   }
 }
 

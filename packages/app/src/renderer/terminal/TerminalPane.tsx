@@ -28,19 +28,28 @@ export function TerminalPane({ agentId, tabId, active }: Props) {
     term.onData((data) => {
       void window.openbot?.terminal.write({ tabId, data })
     })
+    const onKey = (e: KeyboardEvent) => {
+      if (!active) return
+      if (e.ctrlKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault()
+        term.clear()
+      }
+    }
+    window.addEventListener('keydown', onKey)
     const onResize = () => fit.fit()
     window.addEventListener('resize', onResize)
     return () => {
       off?.()
       window.removeEventListener('resize', onResize)
+      window.removeEventListener('keydown', onKey)
       term.dispose()
       termRef.current = null
     }
-  }, [agentId, tabId])
+  }, [agentId, tabId, active])
 
   useEffect(() => {
     if (active) void window.openbot?.terminal.focus({ agentId, tabId })
   }, [active, agentId, tabId])
 
-  return <div className="terminal-pane" data-testid="terminal-pane" ref={hostRef} />
+  return <div className="terminal-pane" data-testid="terminal-pane" tabIndex={0} ref={hostRef} />
 }

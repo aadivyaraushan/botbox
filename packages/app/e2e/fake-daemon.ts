@@ -32,6 +32,7 @@ type Conn = {
 }
 
 let lastConn: Conn | null = null
+const liveAssistantTurn = new Map<string, string>()
 const allConns = new Set<Conn>()
 
 type AskQuestion = {
@@ -197,6 +198,43 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ id }))
       return
     }
+    if (req.url?.startsWith('/debug/finish-error')) {
+      const u = new URL(req.url, 'http://127.0.0.1')
+      const agentId = u.searchParams.get('agentId') ?? ''
+      const row = lastConn?.agents.get(agentId)
+      const turnId = liveAssistantTurn.get(agentId) ?? row?.turns.filter((t) => t.role === 'assistant').at(-1)?.id
+      if (lastConn && row && turnId) {
+        for (const ws of sockets) {
+          push(
+            ws,
+            lastConn,
+            agentId,
+            'harness',
+            {
+              kind: 'turn-finished',
+              sessionId: row.runtime.sessionId ?? 'sess',
+              outcome: 'error',
+              errorMessage: 'cli died',
+              usage: { costUsd: null },
+            },
+            turnId,
+          )
+        }
+        const t = row.turns.find((x) => x.id === turnId)
+        if (t) {
+          t.outcome = 'error'
+          t.errorMessage = 'cli died'
+        }
+        liveAssistantTurn.delete(agentId)
+        row.runtime = { ...row.runtime, state: 'error' }
+        for (const ws of sockets) {
+          push(ws, lastConn, agentId, 'daemon', { kind: 'agent-runtime', runtime: row.runtime })
+        }
+      }
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ ok: true, turnId }))
+      return
+    }
     if (req.url === '/debug/terminal-read') {
       const chunks: Buffer[] = []
       for await (const c of req) chunks.push(c as Buffer)
@@ -304,6 +342,17 @@ wss.on('connection', (ws, req) => {
     conn.agents.set(row.agent.id, row)
   }
 
+  if (scenario === 'memory-setup') {
+    const ada = makeAgent('Ada')
+    ada.runtime = {
+      ...ada.runtime,
+      mcp: [
+        { name: 'openbot', url: 'http://127.0.0.1:18799/mcp/x', last: 'ok' },
+        { name: 'hindsight', url: 'http://127.0.0.1:8888', last: null },
+      ],
+    }
+    conn.agents.set(ada.agent.id, ada)
+  }
   if (scenario === 'peer') {
     const ada = makeAgent('Ada')
     const bea = makeAgent('Bea')
@@ -522,6 +571,25 @@ wss.on('connection', (ws, req) => {
         reply({ ok: false, error: 'agent-not-found' })
         return
       }
+      const liveId = liveAssistantTurn.get(row.agent.id)
+      if (liveId) {
+        push(
+          ws,
+          conn,
+          row.agent.id,
+          'harness',
+          {
+            kind: 'turn-finished',
+            sessionId: row.runtime.sessionId ?? 'sess',
+            outcome: 'interrupted',
+            usage: { costUsd: null },
+          },
+          liveId,
+        )
+        const t = row.turns.find((x) => x.id === liveId)
+        if (t) t.outcome = 'interrupted'
+        liveAssistantTurn.delete(row.agent.id)
+      }
       row.runtime = { ...row.runtime, state: 'paused' }
       push(ws, conn, row.agent.id, 'daemon', { kind: 'agent-runtime', runtime: row.runtime })
       reply({ ok: true })
@@ -720,13 +788,47 @@ wss.on('connection', (ws, req) => {
         { kind: 'reasoning-text', partId, delta: 'Working.' },
         assistantTurnId,
       )
+      const callId = randomUUID()
+      push(
+        ws,
+        conn,
+        row.agent.id,
+        'harness',
+        { kind: 'tool-use', callId, name: 'Bash', inputSummary: 'ls' },
+        assistantTurnId,
+      )
+      push(
+        ws,
+        conn,
+        row.agent.id,
+        'harness',
+        {
+          kind: 'tool-result',
+          callId,
+          name: 'Bash',
+          ok: false,
+          outputSummary: 'write denied',
+        },
+        assistantTurnId,
+      )
+      liveAssistantTurn.set(row.agent.id, assistantTurnId)
       row.turns.push({
         id: assistantTurnId,
         seq: row.turns.length + 1,
         agentId: row.agent.id,
         role: 'assistant',
         source: 'user',
-        parts: [{ type: 'reasoning', id: partId, text: 'Working.' }],
+        parts: [
+          { type: 'reasoning', id: partId, text: 'Working.' },
+          {
+            type: 'tool',
+            id: callId,
+            name: 'Bash',
+            inputSummary: 'ls',
+            ok: false,
+            outputSummary: 'write denied',
+          },
+        ],
         createdAt: new Date().toISOString(),
       })
       reply({ ok: true, turnId: assistantTurnId })

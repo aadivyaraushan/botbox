@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { HarnessEvent } from '@openbot/protocol'
 import { randomUUID } from './uuid'
 import { TeamList } from './team/TeamList'
 import { NewAgent } from './team/NewAgent'
 import { PartTimeline } from './thread/PartTimeline'
 import { Composer } from './thread/Composer'
+import { emptyTurn, foldTurnEvent, type FoldTurn } from './thread/fold/fold-turn'
 import { HarnessSwitcher } from './ui/HarnessSwitcher'
 import { TabStrip, type RightTab } from './right-pane/TabStrip'
 import { PlusMenu } from './right-pane/PlusMenu'
@@ -45,15 +47,7 @@ type Banner = {
   host?: string
 }
 
-type Part = Record<string, unknown> & { type: string; id: string }
-type Turn = {
-  id: string
-  source: string
-  role: string
-  parts: Part[]
-  queued?: boolean
-  dropped?: boolean
-}
+type Turn = FoldTurn
 
 type Model = { id: string; displayName: string; efforts?: string[] }
 
@@ -140,8 +134,14 @@ export function App() {
   const [toast, setToast] = useState<string | null>(null)
   const [filesSearchToken, setFilesSearchToken] = useState(0)
   const [answerChat, setAnswerChat] = useState<{ agentId: string; partId: string } | null>(null)
+  const [waitModal, setWaitModal] = useState<null | { mode: 'quit' | 'pause-all'; names: string[] }>(
+    null,
+  )
   const streamStarted = useRef(false)
   const lastEnvelopeId = useRef(0)
+  const quitConfirmed = useRef(false)
+  const agentsRef = useRef(agents)
+  agentsRef.current = agents
 
   const selected = selectedId ? agents[selectedId] : null
 
@@ -188,7 +188,7 @@ export function App() {
 
   const attentionCount = useMemo(() => {
     let n = 0
-    for (const a of Object.values(agents)) {
+    for (const a of Object.values(agentsRef.current)) {
       const blocked =
         a.runtime.state === 'needs-you' ||
         a.banners.some((b) => ['needs-login', 'needs-site', 'memory-error'].includes(b.type))
@@ -234,112 +234,46 @@ export function App() {
       }
       if (env.channel === 'harness') {
         const turnId = String(env.turnId)
-        const event = env.event as Record<string, unknown>
+        const raw = env.event as Record<string, unknown>
+        const kind = String(raw.kind ?? (raw as { type?: string }).type ?? '')
+        const event = { ...raw, kind } as HarnessEvent
         setAgents((prev) => {
           const cur = prev[agentId]
           if (!cur) return prev
           let turns = [...cur.turns]
           let unread = cur.unread
-          const ensure = () => {
-            let t = turns.find((x) => x.id === turnId)
-            if (!t) {
-              t = {
-                id: turnId,
-                source: String(event.source ?? 'user'),
-                role: String(event.role ?? 'assistant'),
-                parts: [],
-              }
-              turns.push(t)
-            }
-            return t
-          }
+          const idx = turns.findIndex((x) => x.id === turnId)
+          let base: FoldTurn =
+            idx >= 0
+              ? { ...turns[idx]!, parts: [...turns[idx]!.parts] }
+              : emptyTurn(turnId)
           if (event.kind === 'turn-created') {
-            const t = ensure()
-            t.source = String(event.source)
-            t.role = String(event.role)
-            if (event.source === 'compact' || event.source === 'harness-switch-compact') {
-              /* divider via source */
+            base = foldTurnEvent(base, event)
+          } else if (event.kind === 'turn-finished') {
+            base = foldTurnEvent(base, event)
+          } else {
+            base = foldTurnEvent(base, event)
+            if (
+              event.kind === 'reasoning-text' ||
+              event.kind === 'assistant-text' ||
+              event.kind === 'ask-user-question' ||
+              (event.kind === 'peer-message' && event.direction === 'received')
+            ) {
+              if (selectedId !== agentId) unread = true
             }
-          } else if (event.kind === 'reasoning-text') {
-            const t = ensure()
-            const partId = String(event.partId)
-            let p = t.parts.find((x) => x.id === partId)
-            if (!p) {
-              p = { type: 'reasoning', id: partId, text: '' }
-              t.parts.push(p)
+            if (event.kind === 'compacted' && event.reason === 'manual') {
+              base = { ...base, source: 'compact' }
             }
-            p.text = String(p.text ?? '') + String(event.delta ?? '')
-            if (selectedId !== agentId) unread = true
-          } else if (event.kind === 'assistant-text') {
-            const t = ensure()
-            const partId = String(event.partId)
-            let p = t.parts.find((x) => x.id === partId)
-            if (!p) {
-              p = { type: 'text', id: partId, text: '' }
-              t.parts.push(p)
-            }
-            p.text = String(p.text ?? '') + String(event.delta ?? '')
-            if (selectedId !== agentId) unread = true
-          } else if (event.kind === 'tool-use') {
-            const t = ensure()
-            t.parts.push({
-              type: 'tool',
-              id: String(event.callId),
-              name: String(event.name),
-              inputSummary: String(event.inputSummary ?? ''),
-            })
-          } else if (event.kind === 'compacted') {
-            const t = ensure()
-            t.parts.push({
-              type: 'compaction',
-              id: String(event.partId),
-              reason: String(event.reason),
-              forHarness: event.forHarness as string | undefined,
-            })
-            if (event.reason === 'manual') t.source = 'compact'
-          } else if (event.kind === 'ask-user-question') {
-            const t = ensure()
-            const partId = String(event.partId)
-            const existing = t.parts.find((x) => x.id === partId)
-            const part = {
-              type: 'ask-user-question',
-              id: partId,
-              questions: event.questions,
-              status: String(event.status ?? 'open'),
-              ...(event.answers !== undefined ? { answers: event.answers } : {}),
-              ...(event.response !== undefined ? { response: event.response } : {}),
-            }
-            if (existing) Object.assign(existing, part)
-            else t.parts.push(part)
-            if (selectedId !== agentId) unread = true
-          } else if (event.kind === 'ask-user-question-status') {
-            const t = ensure()
-            const partId = String(event.partId)
-            const p = t.parts.find((x) => x.id === partId)
-            if (p) p.status = String(event.status)
-          } else if (event.kind === 'peer-message' || (event as { type?: string }).type === 'peer-message') {
-            const t = ensure()
-            const partId = String(event.partId)
-            const part = {
-              type: 'peer-message',
-              id: partId,
-              peerAgentId: String(event.peerAgentId ?? ''),
-              peerName: String(event.peerName ?? ''),
-              direction: String(event.direction ?? 'received'),
-              text: String(event.text ?? ''),
-            }
-            const existing = t.parts.find((x) => x.id === partId)
-            if (existing) Object.assign(existing, part)
-            else t.parts.push(part)
-            if (String(event.direction) === 'received' && selectedId !== agentId) unread = true
           }
+          if (idx >= 0) turns[idx] = base
+          else turns.push(base)
           return { ...prev, [agentId]: { ...cur, turns, unread } }
         })
         if (
           event.kind === 'ask-user-question-status' &&
-          (String(event.status) === 'answered' || String(event.status) === 'cancelled')
+          (event.status === 'answered' || event.status === 'cancelled')
         ) {
-          const partId = String(event.partId)
+          const partId = event.partId
           setAnswerChat((cur) =>
             cur && cur.agentId === agentId && cur.partId === partId ? null : cur,
           )
@@ -415,10 +349,36 @@ export function App() {
         if (selectedId) addTab(selectedId, 'browser')
       }
       if (a.action === 'pause-all') {
-        for (const id of Object.keys(agents)) void api({ type: 'agent.pause', agentId: id })
+        const waiters = Object.values(agentsRef.current)
+          .filter((bundle) =>
+            bundle.turns.some((t) =>
+              t.parts.some((p) => p.type === 'ask-user-question' && p.status === 'open'),
+            ),
+          )
+          .map((b) => b.agent.name)
+        if (waiters.length > 0) {
+          setWaitModal({ mode: 'pause-all', names: waiters })
+        } else {
+          for (const id of Object.keys(agentsRef.current)) void api({ type: 'agent.pause', agentId: id })
+        }
       }
       if (a.action === 'resume-all') {
-        for (const id of Object.keys(agents)) void api({ type: 'agent.resume', agentId: id })
+        for (const id of Object.keys(agentsRef.current)) {
+          if (agentsRef.current[id]?.runtime.state === 'paused') void api({ type: 'agent.resume', agentId: id })
+        }
+      }
+      if (a.action === 'quit-check') {
+        const waiters = Object.values(agentsRef.current).filter((bundle) =>
+          bundle.turns.some((t) =>
+            t.parts.some((p) => p.type === 'ask-user-question' && p.status === 'open'),
+          ),
+        )
+        if (waiters.length > 0) {
+          setWaitModal({ mode: 'quit', names: waiters.map((b) => b.agent.name) })
+        } else {
+          quitConfirmed.current = true
+          void window.openbot?.confirmQuit?.()
+        }
       }
     })
     const offSelect = window.openbot.onSelectAgent((id) => setSelectedId(id))
@@ -504,7 +464,7 @@ export function App() {
     })()
   }, [selectedId, selectedPresent, selectedHistoryLoaded, loadHistory, loadModels, loadSkills])
 
-  const rows = Object.values(agents).map((a) => ({
+  const rows = Object.values(agentsRef.current).map((a) => ({
     id: a.agent.id,
     name: a.agent.name,
     status: statusWord(a.runtime.state),
@@ -581,7 +541,7 @@ export function App() {
           if (p.id !== partId || p.type !== 'ask-user-question') return p
           return {
             ...p,
-            status: 'answered',
+            status: 'answered' as const,
             answers,
             ...(response !== undefined ? { response } : {}),
           }
@@ -677,7 +637,7 @@ export function App() {
         ? primaryFor(selected.runtime.state)
         : 'send'
   const teamLoginStrip =
-    Object.keys(agents).length === 0 &&
+    Object.keys(agentsRef.current).length === 0 &&
     false /* fake may not expose global auth; M2 first-run strip optional with empty team */
 
   return (
@@ -789,8 +749,18 @@ export function App() {
                 </div>
               ))}
             </div>
+            {!selected.banners.some((b) => b.type === 'memory-error') &&
+            selected.runtime.mcp.find((m) => m.name === 'hindsight')?.last !== 'ok' ? (
+              <div className="memory-setup" data-testid="memory-setup">
+                <div>Setting up memory…</div>
+                <div className="memory-setup-bar" role="progressbar" aria-label="Setting up memory" />
+              </div>
+            ) : null}
             <PartTimeline
               turns={selected.turns as never}
+              streaming={
+                selected.runtime.state === 'thinking' || selected.runtime.state === 'needs-you'
+              }
               answerChatPartId={
                 answerChat && answerChat.agentId === selected.agent.id ? answerChat.partId : null
               }
@@ -917,6 +887,77 @@ export function App() {
               >
                 Save
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {waitModal ? (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="An agent is waiting on you"
+          data-testid="wait-modal"
+        >
+          <div className="modal">
+            <h2 style={{ margin: 0, fontSize: 16 }}>An agent is waiting on you</h2>
+            <p style={{ margin: 0, color: 'var(--muted)' }}>{waitModal.names.join(', ')}</p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                data-testid="wait-open"
+                onClick={() => {
+                  const first = Object.values(agentsRef.current).find((bundle) =>
+                    bundle.turns.some((t) =>
+                      t.parts.some((p) => p.type === 'ask-user-question' && p.status === 'open'),
+                    ),
+                  )
+                  if (first) setSelectedId(first.agent.id)
+                  setWaitModal(null)
+                  void window.openbot?.showWindow?.()
+                }}
+              >
+                Open OpenBot
+              </button>
+              {waitModal.mode === 'pause-all' ? (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  data-testid="wait-pause-others"
+                  onClick={() => {
+                    for (const [id, bundle] of Object.entries(agentsRef.current)) {
+                      const waiting = bundle.turns.some((t) =>
+                        t.parts.some((p) => p.type === 'ask-user-question' && p.status === 'open'),
+                      )
+                      if (!waiting) void api({ type: 'agent.pause', agentId: id })
+                    }
+                    setWaitModal(null)
+                  }}
+                >
+                  Pause the others
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  data-testid="wait-stop-quit"
+                  onClick={() => {
+                    for (const [id, bundle] of Object.entries(agentsRef.current)) {
+                      const openAsk = bundle.turns.some((t) =>
+                        t.parts.some((p) => p.type === 'ask-user-question' && p.status === 'open'),
+                      )
+                      if (openAsk) void api({ type: 'agent.pause', agentId: id })
+                    }
+                    quitConfirmed.current = true
+                    setWaitModal(null)
+                    void window.openbot?.confirmQuit?.()
+                  }}
+                >
+                  Stop and quit
+                </button>
+              )}
             </div>
           </div>
         </div>
