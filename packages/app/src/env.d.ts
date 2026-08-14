@@ -13,6 +13,11 @@ type OpenBotApi = {
   onSelectAgent: (cb: (agentId: string) => void) => () => void
   setUnread: (count: number) => Promise<unknown>
   rememberSlug: (p: { agentId: string; slug: string }) => Promise<unknown>
+  history: {
+    suggest: (p: { agentId: string; q: string }) => Promise<{ urls: string[] }>
+  }
+  confirmQuit: () => Promise<unknown>
+  showWindow: () => Promise<unknown>
   browser: {
     navigate: (p: { tabId: string; url: string }) => Promise<unknown>
     back: (p: { tabId: string }) => Promise<unknown>

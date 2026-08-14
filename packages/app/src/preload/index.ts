@@ -24,6 +24,11 @@ contextBridge.exposeInMainWorld('openbot', {
   },
   setUnread: (count: number) => ipcRenderer.invoke('unread:set', { count }),
   rememberSlug: (p: { agentId: string; slug: string }) => ipcRenderer.invoke('agent:rememberSlug', p),
+  history: {
+    suggest: (p: { agentId: string; q: string }) => ipcRenderer.invoke('history:suggest', p),
+  },
+  confirmQuit: () => ipcRenderer.invoke('app:confirm-quit'),
+  showWindow: () => ipcRenderer.invoke('app:show-window'),
   browser: {
     navigate: (p: { tabId: string; url: string }) => ipcRenderer.invoke('browser:navigate', p),
     back: (p: { tabId: string }) => ipcRenderer.invoke('browser:back', p),

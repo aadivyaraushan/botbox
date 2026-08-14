@@ -26,6 +26,7 @@ let daemonChild: ChildProcess | null = null
 let ws: WebSocket | null = null
 let continueTipShown = false
 let quitting = false
+let quitAllowed = false
 const pending = new Map<string, (v: Record<string, unknown>) => void>()
 const ptyManager = new TerminalPtyManager()
 const browserManager = new BrowserViewManager({
@@ -297,6 +298,20 @@ void app.whenReady().then(() => {
     agentSlug.set(p.agentId, p.slug)
     return { ok: true }
   })
+  ipcMain.handle('history:suggest', (_e, p: { agentId: string; q: string }) => {
+    const slug = agentSlug.get(p.agentId) ?? 'agent'
+    return browserManager.suggest(slug, p.q)
+  })
+  ipcMain.handle('app:confirm-quit', () => {
+    quitAllowed = true
+    app.quit()
+    return { ok: true }
+  })
+  ipcMain.handle('app:show-window', () => {
+    mainWindow?.show()
+    mainWindow?.focus()
+    return { ok: true }
+  })
   ipcMain.handle('app:select-agent-from-notify', (_e, agentId: string) => {
     sendToRenderer(mainWindow, 'app:select-agent', agentId)
   })
@@ -316,6 +331,7 @@ void app.whenReady().then(() => {
     getWindow,
     onPauseAll: () => sendToRenderer(mainWindow, 'app:menu', { action: 'pause-all' }),
     onResumeAll: () => sendToRenderer(mainWindow, 'app:menu', { action: 'resume-all' }),
+    onQuit: () => sendToRenderer(mainWindow, 'app:menu', { action: 'quit-check' }),
   })
 
   const e2eWs = process.env.OPENBOT_DAEMON_WS
@@ -334,6 +350,16 @@ void app.whenReady().then(() => {
 })
 
 app.on('before-quit', (e) => {
+  if (!quitAllowed) {
+    // E2E / external daemon: Playwright app.close must not hang on wait modal.
+    if (process.env.OPENBOT_DAEMON_WS) {
+      quitAllowed = true
+    } else {
+      e.preventDefault()
+      sendToRenderer(mainWindow, 'app:menu', { action: 'quit-check' })
+      return
+    }
+  }
   quitting = true
   if (process.env.OPENBOT_DAEMON_WS) return
   if (!daemonChild) return

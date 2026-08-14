@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { resolveAddressBar } from './suggest-url'
 
 type Props = {
   agentId: string
@@ -12,6 +13,7 @@ type Props = {
 
 export function Chrome({ agentId, tabId, url, held, onUrlChange, onReturnControl, onTakeControl }: Props) {
   const [draft, setDraft] = useState(url)
+  const [suggestions, setSuggestions] = useState<string[]>([])
   const slotRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => setDraft(url), [url])
@@ -42,6 +44,21 @@ export function Chrome({ agentId, tabId, url, held, onUrlChange, onReturnControl
     }
   }, [agentId, tabId])
 
+  async function refreshSuggestions(q: string) {
+    const res = (await window.openbot?.history?.suggest({ agentId, q })) as
+      | { urls?: string[] }
+      | undefined
+    setSuggestions(res?.urls ?? [])
+  }
+
+  function navigateTo(nextRaw: string) {
+    const next = resolveAddressBar(nextRaw, suggestions)
+    setDraft(next)
+    onUrlChange(next)
+    setSuggestions([])
+    void window.openbot?.browser.navigate({ tabId, url: next })
+  }
+
   return (
     <div className="browser-chrome" data-testid="browser-chrome">
       <div className="browser-toolbar">
@@ -58,18 +75,25 @@ export function Chrome({ agentId, tabId, url, held, onUrlChange, onReturnControl
           className="browser-url-form"
           onSubmit={(e) => {
             e.preventDefault()
-            let next = draft.trim()
-            if (next && !/^https?:\/\//i.test(next)) next = 'https://' + next
-            onUrlChange(next)
-            void window.openbot?.browser.navigate({ tabId, url: next })
+            navigateTo(draft)
           }}
         >
           <input
             data-testid="browser-url"
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            list="browser-url-suggestions"
+            onChange={(e) => {
+              const v = e.target.value
+              setDraft(v)
+              void refreshSuggestions(v)
+            }}
             aria-label="Address"
           />
+          <datalist id="browser-url-suggestions" data-testid="browser-url-suggestions">
+            {suggestions.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
         </form>
         {held ? (
           <div className="driving-bar" data-testid="youre-driving">
