@@ -29,5 +29,12 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install
+      # pnpm may skip electron's postinstall binary download; force it for Playwright.
+      - name: Ensure Electron binary
+        run: |
+          set -euo pipefail
+          ELECTRON_DIR="$(pnpm --filter @openbot/app exec node -p "require('path').dirname(require.resolve('electron/package.json'))")"
+          node "$ELECTRON_DIR/install.js"
+          pnpm --filter @openbot/app exec electron --version
       - run: pnpm --filter @openbot/app build
-      - run: pnpm --filter @openbot/app test:e2e -- --project=ci
+      - run: pnpm --filter @openbot/app exec playwright test --project=ci
