@@ -62,4 +62,9 @@ contextBridge.exposeInMainWorld('openbot', {
     ipcRenderer.on('terminal:need-tab', handler)
     return () => ipcRenderer.removeListener('terminal:need-tab', handler)
   },
+  onBrowserMeta: (cb: (ev: { tabId: string; url: string; title: string }) => void) => {
+    const handler = (_: unknown, ev: { tabId: string; url: string; title: string }) => cb(ev)
+    ipcRenderer.on('browser:meta', handler)
+    return () => ipcRenderer.removeListener('browser:meta', handler)
+  },
 })
