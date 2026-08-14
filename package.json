@@ -13,5 +13,13 @@
   },
   "devDependencies": {
     "tsx": "4.23.12"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild",
+      "node-pty"
+    ]
   }
 }

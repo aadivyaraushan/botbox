@@ -62,9 +62,9 @@ test.describe('OpenBot M2 app', () => {
     // fixture compact divider from history
     await expect(page.getByTestId('compact-divider')).toContainText('Context compacted')
 
-    // View → Browser present; right pane coming later
+    // View → Browser opens chrome (M5)
     await clickMenu(app, ['View', 'Browser'])
-    await expect(page.getByTestId('right-pane-body')).toContainText('Coming in a later build')
+    await expect(page.getByTestId('browser-chrome')).toBeVisible()
 
     // composer controls inside composer, not top toolbar
     const composer = page.getByTestId('composer')
@@ -139,10 +139,10 @@ test.describe('OpenBot M2 app', () => {
     // plus menu disabled Coming later
     await page.getByTestId('plus-menu').getByRole('button', { name: 'Add tab' }).click()
     const plus = page.getByTestId('plus-menu').locator('.plus-menu-list')
-    await expect(plus.getByRole('button', { name: 'Terminal' })).toBeDisabled()
-    await expect(plus.getByRole('button', { name: 'Browser' })).toBeDisabled()
+    await expect(plus.getByRole('button', { name: 'Terminal' })).toBeEnabled()
+    await expect(plus.getByRole('button', { name: 'Browser' })).toBeEnabled()
     await expect(plus.getByRole('button', { name: 'Files' })).toBeDisabled()
-    await expect(plus.getByRole('button', { name: 'Browser' })).toHaveAttribute(
+    await expect(plus.getByRole('button', { name: 'Files' })).toHaveAttribute(
       'title',
       'Coming in a later build',
     )

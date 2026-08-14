@@ -11,6 +11,9 @@ const PORT = 18799
 const TOKEN = 'test-token'
 
 let lastAskAnswer: Record<string, unknown> | null = null
+let lastTerminalRead: Record<string, unknown> | null = null
+const pendingAppReplies = new Map<string, (v: Record<string, unknown>) => void>()
+const sockets = new Set<WebSocket>()
 
 type Conn = {
   scenario: string
@@ -27,6 +30,9 @@ type Conn = {
     text: string
   }
 }
+
+let lastConn: Conn | null = null
+const allConns = new Set<Conn>()
 
 type AskQuestion = {
   question: string
@@ -135,18 +141,88 @@ function makeAgent(name: string, opts?: { loggedOut?: boolean; state?: AgentRunt
 }
 
 const server = http.createServer((req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, { 'content-type': 'text/plain' })
-    res.end('ok')
-    return
-  }
-  if (req.url === '/debug/last-ask-answer') {
-    res.writeHead(200, { 'content-type': 'application/json' })
-    res.end(JSON.stringify(lastAskAnswer))
-    return
-  }
-  res.writeHead(404)
-  res.end()
+  void (async () => {
+    if (req.url === '/health') {
+      res.writeHead(200, { 'content-type': 'text/plain' })
+      res.end('ok')
+      return
+    }
+    if (req.url === '/debug/last-ask-answer') {
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify(lastAskAnswer))
+      return
+    }
+    if (req.url?.startsWith('/debug/needs-site')) {
+      const u = new URL(req.url, 'http://127.0.0.1')
+      let agentId = u.searchParams.get('agentId') ?? ''
+      const host = u.searchParams.get('host') ?? 'example.com'
+      let pushed = false
+      for (const conn of allConns) {
+        let row = agentId ? conn.agents.get(agentId) : undefined
+        if (!row) row = [...conn.agents.values()].find((a) => a.agent.name === 'Ada')
+        if (!row) continue
+        agentId = row.agent.id
+        const banner: Banner = {
+          kind: 'banner',
+          bannerId: randomUUID(),
+          agentId,
+          type: 'needs-site',
+          host,
+          message: `Allow ${host}? This agent wants to open it.`,
+          actions: ['allow-site', 'deny-site'],
+        }
+        row.banners = [...row.banners.filter((b) => b.type !== 'needs-site'), banner]
+        for (const sock of sockets) push(sock, conn, agentId, 'daemon', banner)
+        pushed = true
+      }
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ ok: pushed, agentId }))
+      return
+    }
+    if (req.url?.startsWith('/debug/browser-exec')) {
+      const u = new URL(req.url, 'http://127.0.0.1')
+      const agentId = u.searchParams.get('agentId') ?? ''
+      const id = randomUUID()
+      const msg = {
+        id,
+        type: 'browser.exec',
+        agentId,
+        allowedHosts: ['example.com'],
+        op: 'navigate',
+        url: u.searchParams.get('url') ?? 'https://example.com/',
+        slug: u.searchParams.get('slug') ?? 'ada',
+      }
+      for (const sock of sockets) sock.send(encodeFrame(msg))
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ id }))
+      return
+    }
+    if (req.url === '/debug/terminal-read') {
+      const chunks: Buffer[] = []
+      for await (const c of req) chunks.push(c as Buffer)
+      const body = chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}
+      const agentId = String(body.agentId ?? '')
+      const id = randomUUID()
+      const msg = { id, type: 'terminal.read', agentId }
+      const replyP = new Promise<Record<string, unknown>>((resolve) => {
+        pendingAppReplies.set(id, resolve)
+        setTimeout(() => {
+          if (pendingAppReplies.has(id)) {
+            pendingAppReplies.delete(id)
+            resolve({ ok: false, error: 'timeout' })
+          }
+        }, 5000)
+      })
+      for (const sock of sockets) sock.send(encodeFrame(msg))
+      const result = await replyP
+      lastTerminalRead = result
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify(result))
+      return
+    }
+    res.writeHead(404)
+    res.end()
+  })()
 })
 
 const wss = new WebSocketServer({ server })
@@ -166,6 +242,13 @@ wss.on('connection', (ws, req) => {
     loggedOutOnCreate: false,
   }
   lastAskAnswer = null
+  lastConn = conn
+  allConns.add(conn)
+  sockets.add(ws)
+  ws.on('close', () => {
+    sockets.delete(ws)
+    allConns.delete(conn)
+  })
 
   if (scenario === 'ask') {
     const row = seedAskAgent([
@@ -706,6 +789,39 @@ wss.on('connection', (ws, req) => {
 
     if (type === 'harness.startLogin') {
       reply({ ok: true })
+      return
+    }
+
+    if (type === 'response' && pendingAppReplies.has(id)) {
+      const resolve = pendingAppReplies.get(id)!
+      pendingAppReplies.delete(id)
+      resolve(msg)
+      return
+    }
+
+    if (type === 'browser.allowSite') {
+      const agentId = String(msg.agentId)
+      const row = conn.agents.get(agentId)
+      if (!row) {
+        reply({ ok: false, error: 'agent-not-found' })
+        return
+      }
+      row.banners = row.banners.filter((b) => b.type !== 'needs-site')
+      reply({ ok: true })
+      return
+    }
+
+    if (type === 'browser.setHumanControl') {
+      const agentId = String(msg.agentId)
+      const row = conn.agents.get(agentId)
+      if (!row) {
+        reply({ ok: false, error: 'agent-not-found' })
+        return
+      }
+      const held = Boolean(msg.held)
+      row.runtime = { ...row.runtime, humanControl: { held } }
+      push(ws, conn, agentId, 'daemon', { kind: 'agent-runtime', runtime: row.runtime })
+      reply({ ok: true, held })
       return
     }
 

@@ -5,7 +5,8 @@ import { NewAgent } from './team/NewAgent'
 import { PartTimeline } from './thread/PartTimeline'
 import { Composer } from './thread/Composer'
 import { HarnessSwitcher } from './ui/HarnessSwitcher'
-import { TabStrip } from './right-pane/TabStrip'
+import { TabStrip, type RightTab } from './right-pane/TabStrip'
+import { PlusMenu } from './right-pane/PlusMenu'
 
 type AgentConfig = {
   id: string
@@ -134,12 +135,55 @@ export function App() {
   const [connected, setConnected] = useState(true)
   const [renameId, setRenameId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
-  const [rightTabs] = useState<Array<{ id: string; kind: 'browser' | 'terminal' | 'files'; title: string }>>([])
+  const [tabsByAgent, setTabsByAgent] = useState<Record<string, RightTab[]>>({})
+  const [activeByAgent, setActiveByAgent] = useState<Record<string, string | null>>({})
+  const [toast, setToast] = useState<string | null>(null)
   const [answerChat, setAnswerChat] = useState<{ agentId: string; partId: string } | null>(null)
   const streamStarted = useRef(false)
   const lastEnvelopeId = useRef(0)
 
   const selected = selectedId ? agents[selectedId] : null
+
+  const rightTabs = selectedId ? tabsByAgent[selectedId] ?? [] : []
+  const activeTabId = selectedId ? activeByAgent[selectedId] ?? null : null
+
+  const addTab = useCallback(
+    (agentId: string, kind: 'browser' | 'terminal' | 'files', tabId?: string, url?: string) => {
+      const id = tabId ?? randomUUID()
+      setTabsByAgent((prev) => {
+        const cur = prev[agentId] ?? []
+        const ofKind = cur.filter((x) => x.kind === kind)
+        let next = cur
+        if (ofKind.length >= 12) {
+          const oldest = ofKind[0]!
+          next = cur.filter((x) => x.id !== oldest.id)
+          setToast(`Closed oldest ${kind} tab`)
+        }
+        if (next.some((x) => x.id === id)) return { ...prev, [agentId]: next }
+        const title = kind === 'browser' ? 'Browser' : kind === 'terminal' ? 'Terminal' : 'Files'
+        return {
+          ...prev,
+          [agentId]: [
+            ...next,
+            { id, kind, title, url: url ?? (kind === 'browser' ? 'about:blank' : undefined) },
+          ],
+        }
+      })
+      setActiveByAgent((prev) => ({ ...prev, [agentId]: id }))
+      return id
+    },
+    [],
+  )
+
+  const closeTab = useCallback((agentId: string, tabId: string) => {
+    setTabsByAgent((prev) => {
+      const cur = prev[agentId] ?? []
+      const next = cur.filter((x) => x.id !== tabId)
+      const activeNext = next[next.length - 1]?.id ?? null
+      setActiveByAgent((a) => ({ ...a, [agentId]: activeNext }))
+      return { ...prev, [agentId]: next }
+    })
+  }, [])
 
   const attentionCount = useMemo(() => {
     let n = 0
@@ -320,6 +364,7 @@ export function App() {
           unread: old?.unread ?? false,
           historyLoaded: old?.historyLoaded ?? false,
         }
+        void window.openbot.rememberSlug?.({ agentId: it.agent.id, slug: it.agent.slug })
       }
       return next
     })
@@ -366,7 +411,7 @@ export function App() {
     const offMenu = window.openbot.onMenu((a) => {
       if (a.action === 'new-agent') setNewOpen(true)
       if (a.action === 'browser') {
-        /* M2: View→Browser present; body stays Coming later */
+        if (selectedId) addTab(selectedId, 'browser')
       }
       if (a.action === 'pause-all') {
         for (const id of Object.keys(agents)) void api({ type: 'agent.pause', agentId: id })
@@ -385,14 +430,37 @@ export function App() {
       await refreshList()
     })()
 
+    const offBrowserNeed = window.openbot.onBrowserTabNeeded((ev) => {
+      addTab(ev.agentId, 'browser', ev.tabId)
+    })
+    const offTermNeed = window.openbot.onTerminalTabNeeded((ev) => {
+      addTab(ev.agentId, 'terminal', ev.tabId)
+    })
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === '`') {
+        e.preventDefault()
+        if (selectedId) addTab(selectedId, 'terminal')
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'w') {
+        const active = selectedId ? activeByAgent[selectedId] : null
+        if (selectedId && active) {
+          e.preventDefault()
+          closeTab(selectedId, active)
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
     return () => {
       offEvent()
       offStatus()
       offMenu()
       offSelect()
+      offBrowserNeed()
+      offTermNeed()
+      window.removeEventListener('keydown', onKey)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [selectedId, addTab, closeTab, activeByAgent])
 
   useEffect(() => {
     if (!selectedId) return
@@ -610,7 +678,7 @@ export function App() {
     false /* fake may not expose global auth; M2 first-run strip optional with empty team */
 
   return (
-    <div className="app-shell">
+    <div className={rightTabs.length > 0 ? 'app-shell has-right-pane' : 'app-shell no-right-pane'}>
       <div className="col" data-testid="team-column">
         <h1 className="heading">Team</h1>
         <div style={{ padding: '0 14px 8px' }}>
@@ -669,6 +737,52 @@ export function App() {
                       Log in
                     </button>
                   ) : null}
+                  {b.actions.includes('allow-site') ? (
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      data-testid="allow-site"
+                      onClick={() => {
+                        void api({
+                          type: 'browser.allowSite',
+                          agentId: selected.agent.id,
+                          host: b.host ?? '',
+                          allow: true,
+                        }).then(() => {
+                          setAgents((prev) => {
+                            const cur = prev[selected.agent.id]
+                            if (!cur) return prev
+                            return {
+                              ...prev,
+                              [selected.agent.id]: {
+                                ...cur,
+                                banners: cur.banners.filter((x) => x.type !== 'needs-site'),
+                              },
+                            }
+                          })
+                        })
+                      }}
+                    >
+                      Allow
+                    </button>
+                  ) : null}
+                  {b.actions.includes('deny-site') ? (
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      data-testid="deny-site"
+                      onClick={() =>
+                        void api({
+                          type: 'browser.allowSite',
+                          agentId: selected.agent.id,
+                          host: b.host ?? '',
+                          allow: false,
+                        })
+                      }
+                    >
+                      Deny
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -719,7 +833,57 @@ export function App() {
         )}
       </div>
 
-      <TabStrip tabs={rightTabs} activeId={null} onSelect={() => {}} browserEnabled={false} />
+      {rightTabs.length > 0 ? (
+        <TabStrip
+          tabs={rightTabs}
+          activeId={activeTabId}
+          agentId={selectedId}
+          held={Boolean(selected?.runtime.humanControl.held)}
+          onSelect={(id) => selectedId && setActiveByAgent((prev) => ({ ...prev, [selectedId]: id }))}
+          onClose={(id) => selectedId && closeTab(selectedId, id)}
+          onPick={(kind) => {
+            if (!selectedId || kind === 'files') return
+            addTab(selectedId, kind)
+          }}
+          onUrlChange={(tabId, url) => {
+            if (!selectedId) return
+            setTabsByAgent((prev) => ({
+              ...prev,
+              [selectedId]: (prev[selectedId] ?? []).map((x) =>
+                x.id === tabId
+                  ? {
+                      ...x,
+                      url,
+                      title: url.replace(/^https?:\/\//, '').slice(0, 24) || 'Browser',
+                    }
+                  : x,
+              ),
+            }))
+          }}
+          onTakeControl={() =>
+            selectedId && void api({ type: 'browser.setHumanControl', agentId: selectedId, held: true })
+          }
+          onReturnControl={() =>
+            selectedId && void api({ type: 'browser.setHumanControl', agentId: selectedId, held: false })
+          }
+        />
+      ) : selectedId ? (
+        <div className="right-pane right-pane-plus-only" data-testid="right-pane-plus-only">
+          <div className="tab-strip">
+            <PlusMenu
+              onPick={(kind) => {
+                if (kind === 'files') return
+                addTab(selectedId, kind)
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
+      {toast ? (
+        <div className="hint" data-testid="toast">
+          {toast}
+        </div>
+      ) : null}
 
       <NewAgent open={newOpen} onClose={() => setNewOpen(false)} onCreate={createAgent} />
 

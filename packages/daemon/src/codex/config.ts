@@ -10,6 +10,8 @@ export type CodexConfigInput = {
   memoryBankId: string
   home: string
   otherAgentDirs: string[]
+  /** Prefer MCP shell when true (default). Omit shell_tool=false on failed probe. */
+  shellToolFalse?: boolean
 }
 
 function tomlKey(absPath: string): string {
@@ -26,7 +28,7 @@ export function buildCodexConfigToml(input: CodexConfigInput): string {
     '',
     '[features]',
     'default_mode_request_user_input = true',
-    'shell_tool = false',
+    ...(input.shellToolFalse === false ? [] : ['shell_tool = false']),
     '',
     '[permissions.openbot]',
     'description = "OpenBot agent"',
