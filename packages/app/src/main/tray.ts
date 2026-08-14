@@ -16,6 +16,7 @@ export function createTray(opts: {
   getWindow: () => BrowserWindow | null
   onPauseAll: () => void
   onResumeAll: () => void
+  onQuit: () => void
 }): Tray {
   const img = nativeImage.createFromPath(iconPath('menubarTemplate.png'))
   tray = new Tray(img)
@@ -34,7 +35,7 @@ export function createTray(opts: {
       },
       { label: 'Pause all', click: () => opts.onPauseAll() },
       { label: 'Resume all', click: () => opts.onResumeAll() },
-      { label: 'Quit', click: () => app.quit() },
+      { label: 'Quit', click: () => opts.onQuit() },
     ]),
   )
   return tray
