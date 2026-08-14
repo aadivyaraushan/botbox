@@ -408,15 +408,29 @@ export function runCodexTurn(opts: CodexRunTurnOptions): CodexRunTurnHandle {
       })
     } finally {
       await lineChain
+      if (child) {
+        const exited = new Promise<void>((resolve) => {
+          if (child!.exitCode != null) {
+            resolve()
+            return
+          }
+          const t = setTimeout(() => resolve(), 5_000)
+          child!.once('exit', () => {
+            clearTimeout(t)
+            resolve()
+          })
+        })
+        try {
+          child.kill('SIGTERM')
+        } catch {
+          /* */
+        }
+        await exited
+      }
       await copyAgentAuthToShared({
         sharedCodexHome: opts.sharedCodexHome,
         agentCodexHome: opts.agentCodexHome,
       })
-      try {
-        child?.kill('SIGTERM')
-      } catch {
-        /* */
-      }
     }
 
     return {
