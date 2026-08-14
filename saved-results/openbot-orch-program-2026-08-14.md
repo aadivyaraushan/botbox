@@ -246,27 +246,29 @@ Forbidden copy gone. Remaining hits are ban documentation + reading `~/.claude/s
 
 Independent judge: `saved-results/openbot-m0-m6-orch-judgment-2026-08-15-pass3.md` → **PASS-WITH-GAPS**.
 
-Engineering units in flight (exclusive worktrees from `origin/main` @ `a8f1cdf`):
+## Pass-3 engineering landed (2026-08-15)
 
-| Unit | Branch | Worktree | Worker |
-|---|---|---|---|
-| p3-readme | `openbot/p3-readme` | `grok-bot-clone-wt-p3-readme` | [README](6c06e9cd-bb66-4c42-ba2a-c6cf9aaa91ed) |
-| p3-signing | `openbot/p3-signing` | `grok-bot-clone-wt-p3-signing` | [Signing](ddcd45b1-e2e8-47f4-8a0e-a8be8933bdae) |
-| p3-artifacts | `openbot/p3-artifacts` | `grok-bot-clone-wt-p3-artifacts` | [Artifacts](01321052-0a89-43f4-9076-d0c764227d39) |
+| Unit | PR | Merge SHA | Verdict | Evidence |
+|---|---|---|---|---|
+| p3-readme | [#18](https://github.com/aadivyaraushan/botbox/pull/18) | `9648d1d` | unit-test-verified | README front door = OpenBot local Mac team; canonical plan `planning/boxbot-local-plan.md`; superseded `botbox-plan.md` labeled historical |
+| p3-artifacts | [#19](https://github.com/aadivyaraushan/botbox/pull/19) | `0c0c8bc` | unit-test-verified | Committed `openbot-orch-program-2026-08-14.md`, `openbot-m3-ask-cards-2026-08-15.md`, judge pass1–pass3 |
+| p3-signing | [#20](https://github.com/aadivyaraushan/botbox/pull/20) | `f5e525d` | live-ui-verified | `identity: "-"`; plan pin; verify fails on `Identifier=Electron`; proof `saved-results/openbot-m2b-adhoc-signing-2026-08-15.md` — `Identifier=com.openbot.app`, `adhoc,runtime`, sealed resources, entitlements embedded |
 
-Must-fix: README OpenBot rewrite; ad-hoc sign `com.openbot.app` + entitlements (revise plan `identity: null` → actual ad-hoc); commit orch program + M3 record.
+**Main tip after pass-3:** `f5e525d`.
 
-Human gates remain open: `m1-smoke-max-pro`, `m7-human`, `m2b-allow-click`.
+### codesign proof (packaged app after #20)
+```
+Identifier=com.openbot.app
+flags=0x10002(adhoc,runtime)
+Signature=adhoc
+Sealed Resources version=2 rules=13 files=70314
+entitlements: apple-events, allow-jit, allow-unsigned-executable-memory, disable-library-validation
+```
+Allow-click E2E **not** closed (re-grant still human after each ad-hoc rebuild).
 
-## Pass-3 artifacts in flight (2026-08-15)
+### Still gated (human)
+- `m1-smoke-max-pro` — Claude Max/Pro
+- `m2b-allow-click` — Screen Recording + Accessibility re-grant
+- `m7-human` — stranger test
 
-GateGuard facts for this section: callers are `orchestrate/openbot/status.md` (Checkpoint line) and `briefs/p3-artifacts.md`; no code imports this file; sibling copy already lived untracked in primary `saved-results/`; structure is dated markdown checkpoints (`YYYY-MM-DD` / `~HH:MMZ`). User asked: copy/commit orch program and update with a short pass-3 in-flight note if needed.
-
-`p3-artifacts` commits durable saved-results that were claimed but untracked on main:
-- `openbot-orch-program-2026-08-14.md` (this file)
-- `openbot-m3-ask-cards-2026-08-15.md` (Playwright ask green + Codex live `askSeen`; Claude ask still deferred)
-- Judge pass1 / pass2 / pass3 markdown under `saved-results/openbot-m0-m6-orch-judgment-2026-08-15*.md`
-
-Sibling units `p3-readme` and `p3-signing` remain in flight on their own worktrees.
-
-<!-- GateGuard: existing checkpoint. Callers: orch status. User: Update openbot-orch-program. -->
+<!-- GateGuard: existing checkpoint. Callers: orch status. User: Close remaining engineering gaps; update checkpoint. -->
