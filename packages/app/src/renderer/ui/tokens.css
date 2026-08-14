@@ -115,3 +115,15 @@ input, textarea { font-family: inherit; color: var(--ink); background: var(--bg-
 .ask-answer-in-chat { align-self: flex-start; }
 .ask-answered-line { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .ask-mono { font-family: var(--mono); font-size: 12px; }
+
+.right-pane-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.browser-chrome { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.browser-toolbar { display: flex; gap: 6px; align-items: center; padding: 8px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.browser-url-form { flex: 1; min-width: 120px; }
+.browser-url-form input { width: 100%; padding: 6px 8px; }
+.browser-slot { flex: 1; min-height: 120px; background: var(--bg-2); }
+.driving-bar { display: flex; gap: 8px; align-items: center; background: var(--bg-3); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 8px; font-size: 12px; }
+.terminal-pane { flex: 1; min-height: 160px; padding: 4px; background: #000; }
+.tab { display: inline-flex; align-items: center; gap: 6px; }
+.app-shell.has-right-pane { grid-template-columns: 220px 1fr minmax(280px, 36vw); }
+.app-shell.no-right-pane { grid-template-columns: 220px 1fr; }

@@ -54,6 +54,20 @@ function inputSummary(input: Record<string, unknown>): string {
   return String(v).slice(0, 200)
 }
 
+/** Preferred visible-shell wiring. When toolAliases missing from SDK types, keep Bash. */
+export function buildClaudeShellOptions(opts: {
+  toolAliasesAvailable: boolean
+}): { toolAliases?: Record<string, string>; disallowedTools?: string[] } {
+  if (!opts.toolAliasesAvailable) {
+    return {}
+  }
+  return { toolAliases: { Bash: 'mcp__openbot__shell_run' } }
+}
+
+export function sdkHasToolAliases(): boolean {
+  return true
+}
+
 export function runTurn(opts: RunTurnOptions): RunTurnHandle {
   const queryFn = opts.queryFn ?? defaultQuery
   let messageIndex = 0
@@ -149,6 +163,8 @@ export function runTurn(opts: RunTurnOptions): RunTurnHandle {
         CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: '0',
       }
     }
+    const shellOpts = buildClaudeShellOptions({ toolAliasesAvailable: sdkHasToolAliases() })
+    if (shellOpts.toolAliases) queryOptions.toolAliases = shellOpts.toolAliases
 
     q = queryFn({ prompt, options: queryOptions as never })
 

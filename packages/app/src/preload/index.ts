@@ -23,4 +23,36 @@ contextBridge.exposeInMainWorld('openbot', {
     return () => ipcRenderer.removeListener('app:select-agent', handler)
   },
   setUnread: (count: number) => ipcRenderer.invoke('unread:set', { count }),
+  rememberSlug: (p: { agentId: string; slug: string }) => ipcRenderer.invoke('agent:rememberSlug', p),
+  browser: {
+    navigate: (p: { tabId: string; url: string }) => ipcRenderer.invoke('browser:navigate', p),
+    back: (p: { tabId: string }) => ipcRenderer.invoke('browser:back', p),
+    forward: (p: { tabId: string }) => ipcRenderer.invoke('browser:forward', p),
+    reload: (p: { tabId: string }) => ipcRenderer.invoke('browser:reload', p),
+    setBounds: (p: {
+      agentId: string
+      tabId: string
+      rect: { x: number; y: number; width: number; height: number }
+    }) => ipcRenderer.invoke('browser:setBounds', p),
+  },
+  terminal: {
+    create: (p: { agentId: string; tabId: string }) => ipcRenderer.invoke('terminal:create', p),
+    write: (p: { tabId: string; data: string }) => ipcRenderer.invoke('terminal:write', p),
+    focus: (p: { agentId: string; tabId: string }) => ipcRenderer.invoke('terminal:focus', p),
+    onData: (cb: (ev: { tabId: string; data: string }) => void) => {
+      const handler = (_: unknown, ev: { tabId: string; data: string }) => cb(ev)
+      ipcRenderer.on('terminal:data', handler)
+      return () => ipcRenderer.removeListener('terminal:data', handler)
+    },
+  },
+  onBrowserTabNeeded: (cb: (ev: { agentId: string; tabId: string }) => void) => {
+    const handler = (_: unknown, ev: { agentId: string; tabId: string }) => cb(ev)
+    ipcRenderer.on('browser:need-tab', handler)
+    return () => ipcRenderer.removeListener('browser:need-tab', handler)
+  },
+  onTerminalTabNeeded: (cb: (ev: { agentId: string; tabId: string }) => void) => {
+    const handler = (_: unknown, ev: { agentId: string; tabId: string }) => cb(ev)
+    ipcRenderer.on('terminal:need-tab', handler)
+    return () => ipcRenderer.removeListener('terminal:need-tab', handler)
+  },
 })

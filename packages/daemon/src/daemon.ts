@@ -26,6 +26,9 @@ import { HindsightClient } from './memory/hindsight-client.js'
 import { resolveLlmProvider, spawnHindsight } from './memory/hindsight-spawn.js'
 import { formatRecallBlock, retainAndSnapshot } from './memory/snapshot.js'
 import { handleMcpRequest } from './mcp/http.js'
+import { hostAllowed, hostFromUrl } from './mcp-browser/hosts.js'
+import type { BrowserToolDeps } from './mcp-browser/tools.js'
+import { writeDeny } from './claude/write-deny.js'
 import { validatePeerSend } from './peer/deliver.js'
 import { applyEvent, turnText } from './turns/reducer.js'
 import { runTurn as runTurnExport } from './turns/run.js'
@@ -54,6 +57,11 @@ export type DaemonOptions = {
   repoRoot?: string
 }
 
+type PendingSite = {
+  url: string
+  resolve: (r: { ok: true; result: { url: string; title: string } } | { ok: false; error: string }) => void
+}
+
 type AgentLive = {
   runtime: AgentRuntime
   queue: AgentQueue
@@ -70,6 +78,7 @@ type AgentLive = {
   >
   spendDate: string
   spendUsd: number
+  pendingSite: PendingSite | null
 }
 
 function todayLocal(): string {
@@ -81,12 +90,17 @@ function todayLocal(): string {
 }
 
 function readPreamble(harness: 'claude-code' | 'codex'): string {
-  const base = path.join(path.dirname(fileURLToPath(import.meta.url)), 'memory', 'preamble.md')
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'memory')
   let body = ''
   try {
-    body = readFileSync(base, 'utf8')
+    body = readFileSync(path.join(dir, 'preamble.md'), 'utf8')
   } catch {
     body = ''
+  }
+  try {
+    body = body.trimEnd() + '\n\n' + readFileSync(path.join(dir, 'preamble-browser.md'), 'utf8')
+  } catch {
+    /* M5 file missing in older trees */
   }
   const ask =
     harness === 'claude-code'
@@ -121,6 +135,10 @@ export class Daemon {
   private repoRoot: string
   private skipHindsightSpawn: boolean
   private loginChild: ChildProcess | null = null
+  private appPending = new Map<
+    string,
+    { resolve: (v: Record<string, unknown>) => void; timer: ReturnType<typeof setTimeout> }
+  >()
 
   constructor(opts: DaemonOptions) {
     this.home = opts.home ?? path.join(os.homedir(), '.openbot')
@@ -274,6 +292,7 @@ export class Daemon {
       askWaiters: new Map(),
       spendDate,
       spendUsd,
+      pendingSite: null,
     })
   }
 
@@ -474,6 +493,7 @@ export class Daemon {
       listOthers: (callerId) =>
         this.team.filter((a) => a.id !== callerId).map((a) => ({ id: a.id, name: a.name, slug: a.slug })),
       messageAgent: (callerId, to, text) => this.peerSend(callerId, to, text),
+      browserTools: (agentId) => this.makeBrowserToolDeps(agentId),
       onHandled: (agentId, ok) => {
         const live = this.live.get(agentId)
         if (!live) return
@@ -497,7 +517,13 @@ export class Daemon {
     }
     const value = decoded.value as Record<string, unknown>
     const id = typeof value.id === 'string' ? value.id : null
-    const type = value.type
+    if (value.type === 'response' && id && this.appPending.has(id)) {
+      const p = this.appPending.get(id)!
+      this.appPending.delete(id)
+      clearTimeout(p.timer)
+      p.resolve(value)
+      return
+    }
     try {
       const result = await this.dispatch(value)
       if (id) ws.send(encodeFrame({ id, type: 'response', ...result }))
@@ -552,6 +578,10 @@ export class Daemon {
         return this.handleStartLogin(value)
       case 'harness.completeLogin':
         return { ok: true }
+      case 'browser.allowSite':
+        return this.handleAllowSite(value)
+      case 'browser.setHumanControl':
+        return this.handleSetHumanControl(value)
       default:
         return { ok: false, error: 'invalid-request' }
     }
@@ -1691,6 +1721,234 @@ export class Daemon {
       'utf8',
     )
     this.pushRuntime(agentId)
+  }
+
+
+  private async requestApp(
+    body: Record<string, unknown>,
+    timeoutMs = 30_000,
+  ): Promise<Record<string, unknown>> {
+    const started = Date.now()
+    while (this.clients.size === 0 && Date.now() - started < timeoutMs) {
+      await new Promise((r) => setTimeout(r, 50))
+    }
+    if (this.clients.size === 0) return { ok: false, error: 'no-app' }
+    const id = randomUUID()
+    const msg = { id, ...body }
+    return await new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        if (this.appPending.has(id)) {
+          this.appPending.delete(id)
+          resolve({ id, type: 'response', ok: false, error: 'no-app' })
+        }
+      }, timeoutMs - (Date.now() - started))
+      this.appPending.set(id, { resolve, timer })
+      for (const ws of this.clients) {
+        if (ws.readyState === ws.OPEN) ws.send(encodeFrame(msg))
+      }
+    })
+  }
+
+  private async loadAllowedHosts(slug: string): Promise<string[]> {
+    try {
+      const raw = JSON.parse(
+        await fs.readFile(this.privatePath(slug, 'browser-allow.json'), 'utf8'),
+      ) as unknown
+      return Array.isArray(raw) ? raw.map(String) : []
+    } catch {
+      return []
+    }
+  }
+
+  private async saveAllowedHosts(slug: string, hosts: string[]): Promise<void> {
+    await fs.mkdir(this.privatePath(slug), { recursive: true })
+    await fs.writeFile(
+      this.privatePath(slug, 'browser-allow.json'),
+      JSON.stringify(hosts),
+      'utf8',
+    )
+  }
+
+  private pushNeedsSite(agentId: string, host: string): void {
+    const live = this.live.get(agentId)
+    if (!live) return
+    const banner: Banner = {
+      kind: 'banner',
+      bannerId: randomUUID(),
+      agentId,
+      type: 'needs-site',
+      host,
+      message: `Allow ${host}? This agent wants to open it.`,
+      actions: ['allow-site', 'deny-site'],
+    }
+    this.pushBanner(banner)
+  }
+
+  private async handleAllowSite(value: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const agentId = String(value.agentId ?? '')
+    const host = String(value.host ?? '')
+    const allow = Boolean(value.allow)
+    const agent = this.team.find((a) => a.id === agentId)
+    const live = this.live.get(agentId)
+    if (!agent || !live) return { ok: false, error: 'agent-not-found' }
+    if (!live.pendingSite) return { ok: false, error: 'not-open' }
+    live.banners = live.banners.filter((b) => b.type !== 'needs-site')
+    this.pushRuntime(agentId)
+    const pending = live.pendingSite
+    live.pendingSite = null
+    if (!allow) {
+      pending.resolve({ ok: false, error: 'needs-site' })
+      return { ok: true }
+    }
+    const hosts = await this.loadAllowedHosts(agent.slug)
+    const n = hostFromUrl(pending.url) ?? host
+    if (!hosts.includes(n)) hosts.push(n)
+    await this.saveAllowedHosts(agent.slug, hosts)
+    const res = await this.requestApp({
+      type: 'browser.exec',
+      agentId,
+      allowedHosts: hosts,
+      op: 'navigate',
+      url: pending.url,
+    })
+    if (res.ok) {
+      pending.resolve({
+        ok: true,
+        result: (res.result as { url: string; title: string }) ?? {
+          url: pending.url,
+          title: '',
+        },
+      })
+    } else {
+      pending.resolve({ ok: false, error: String(res.error ?? 'op-failed') })
+    }
+    return { ok: true }
+  }
+
+  private handleSetHumanControl(value: Record<string, unknown>): Record<string, unknown> {
+    const agentId = String(value.agentId ?? '')
+    const held = Boolean(value.held)
+    const live = this.live.get(agentId)
+    if (!live) return { ok: false, error: 'agent-not-found' }
+    live.runtime.humanControl = { held }
+    this.pushRuntime(agentId)
+    return { ok: true, held }
+  }
+
+  private makeBrowserToolDeps(agentId: string): BrowserToolDeps {
+    const self = this
+    return {
+      agentId,
+      getAllowedHosts: () => {
+        const agent = self.team.find((a) => a.id === agentId)
+        if (!agent) return []
+        try {
+          const raw = JSON.parse(
+            fsSync.readFileSync(self.privatePath(agent.slug, 'browser-allow.json'), 'utf8'),
+          ) as unknown
+          return Array.isArray(raw) ? raw.map(String) : []
+        } catch {
+          return []
+        }
+      },
+      isHumanControlHeld: () => Boolean(self.live.get(agentId)?.runtime.humanControl.held),
+      hasSiteAskOpen: () => Boolean(self.live.get(agentId)?.pendingSite),
+      navigateWithGate: async (url: string) => {
+        const agent = self.team.find((a) => a.id === agentId)
+        const live = self.live.get(agentId)
+        if (!agent || !live) return { ok: false, error: 'unknown-agent' }
+        if (live.pendingSite) return { ok: false, error: 'site-ask-open' }
+        const host = hostFromUrl(url)
+        if (!host) return { ok: false, error: 'nav-failed' }
+        const allowed = await self.loadAllowedHosts(agent.slug)
+        if (!hostAllowed(host, allowed)) {
+          return await new Promise((resolve) => {
+            live.pendingSite = { url, resolve }
+            self.pushNeedsSite(agentId, host)
+          })
+        }
+        const res = await self.requestApp({
+          type: 'browser.exec',
+          agentId,
+          allowedHosts: allowed,
+          op: 'navigate',
+          url,
+        })
+        if (res.ok) {
+          return {
+            ok: true as const,
+            result: (res.result as { url: string; title: string }) ?? { url, title: '' },
+          }
+        }
+        return { ok: false as const, error: String(res.error ?? 'op-failed') }
+      },
+      exec: async (op) => {
+        const agent = self.team.find((a) => a.id === agentId)
+        const live = self.live.get(agentId)
+        if (!agent || !live) return { ok: false, error: 'unknown-agent' }
+        const allowed = await self.loadAllowedHosts(agent.slug)
+        const res = await self.requestApp({
+          type: 'browser.exec',
+          agentId,
+          allowedHosts: allowed,
+          ...op,
+        })
+        if (res.ok === false && res.error === 'cross-site') {
+          const url = String(res.url ?? '')
+          const host = String(res.host ?? hostFromUrl(url) ?? '')
+          if (live.pendingSite) return { ok: false, error: 'site-ask-open' }
+          return await new Promise((resolve) => {
+            live.pendingSite = { url, resolve }
+            self.pushNeedsSite(agentId, host)
+          })
+        }
+        if (res.ok) {
+          return { ok: true as const, result: (res.result as Record<string, string>) ?? {} }
+        }
+        return { ok: false as const, error: String(res.error ?? 'op-failed') }
+      },
+      terminalRead: async () => {
+        const res = await self.requestApp({ type: 'terminal.read', agentId })
+        if (res.ok) return { ok: true as const, text: String(res.text ?? '') }
+        return { ok: false as const, error: String(res.error ?? 'no-terminal') }
+      },
+      shellRun: async (input) => {
+        const agent = self.team.find((a) => a.id === agentId)
+        if (!agent) return { ok: false, error: 'unknown-agent' }
+        const otherSlugs = self.team.filter((a) => a.id !== agentId).map((a) => a.slug)
+        const deny = writeDeny(
+          'mcp__openbot__shell_run',
+          { command: input.command },
+          {
+            home: self.home,
+            cwd: self.agentPath(agent.slug, 'workspace'),
+            ownSlug: agent.slug,
+            otherSlugs,
+          },
+        ) as { hookSpecificOutput?: { permissionDecision?: string } }
+        if (deny.hookSpecificOutput?.permissionDecision === 'deny') {
+          return { ok: false, error: 'write-denied' }
+        }
+        const res = await self.requestApp({
+          type: 'terminal.run',
+          agentId,
+          command: input.command,
+          cwd: input.cwd,
+          timeoutMs: input.timeoutMs,
+          tabId: input.tabId,
+          stealFocus: false,
+        })
+        if (res.ok) {
+          return {
+            ok: true as const,
+            tabId: String(res.tabId),
+            exitCode: Number(res.exitCode ?? 0),
+            output: String(res.output ?? ''),
+          }
+        }
+        return { ok: false as const, error: String(res.error ?? 'op-failed') }
+      },
+    }
   }
 
   /** Test seam: expose live state */

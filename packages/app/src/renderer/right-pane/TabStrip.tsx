@@ -1,15 +1,41 @@
 import { PlusMenu } from './PlusMenu'
+import { Chrome } from '../browser/Chrome'
+import { TerminalPane } from '../terminal/TerminalPane'
 
-type Tab = { id: string; kind: 'browser' | 'terminal' | 'files'; title: string }
-
-type Props = {
-  tabs: Tab[]
-  activeId: string | null
-  onSelect: (id: string) => void
-  browserEnabled?: boolean
+export type RightTab = {
+  id: string
+  kind: 'browser' | 'terminal' | 'files'
+  title: string
+  url?: string
 }
 
-export function TabStrip({ tabs, activeId, onSelect, browserEnabled = false }: Props) {
+type Props = {
+  tabs: RightTab[]
+  activeId: string | null
+  agentId: string | null
+  held: boolean
+  onSelect: (id: string) => void
+  onClose: (id: string) => void
+  onPick: (kind: 'browser' | 'terminal' | 'files') => void
+  onUrlChange: (tabId: string, url: string) => void
+  onReturnControl: () => void
+  onTakeControl: () => void
+}
+
+export function TabStrip({
+  tabs,
+  activeId,
+  agentId,
+  held,
+  onSelect,
+  onClose,
+  onPick,
+  onUrlChange,
+  onReturnControl,
+  onTakeControl,
+}: Props) {
+  if (tabs.length === 0) return null
+  const active = tabs.find((t) => t.id === activeId) ?? tabs[0]!
   return (
     <div className="right-pane" data-testid="right-pane">
       <div className="tab-strip">
@@ -19,24 +45,45 @@ export function TabStrip({ tabs, activeId, onSelect, browserEnabled = false }: P
             type="button"
             className="tab"
             data-testid={`tab-${t.kind}`}
-            disabled={t.kind !== 'files' && !browserEnabled && t.kind === 'browser' ? true : false}
-            title={
-              t.kind === 'browser' && !browserEnabled
-                ? 'Coming in a later build'
-                : undefined
-            }
+            data-tab-id={t.id}
             onClick={() => onSelect(t.id)}
-            style={activeId === t.id ? { borderColor: 'var(--accent)' } : undefined}
+            onAuxClick={(e) => {
+              if (e.button === 1) onClose(t.id)
+            }}
+            style={active.id === t.id ? { borderColor: 'var(--accent)' } : undefined}
           >
-            {t.title}
+            <span>{t.title}</span>
+            <span
+              role="button"
+              aria-label={`Close ${t.title}`}
+              data-testid={`tab-close-${t.id}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                onClose(t.id)
+              }}
+            >
+              ×
+            </span>
           </button>
         ))}
-        <PlusMenu onPick={() => {}} />
+        <PlusMenu onPick={onPick} browserEnabled terminalEnabled />
       </div>
-      <div className="helper" data-testid="right-pane-body">
-        {tabs.length === 0
-          ? 'Coming in a later build'
-          : 'Coming in a later build'}
+      <div className="right-pane-body" data-testid="right-pane-body">
+        {active.kind === 'browser' && agentId ? (
+          <Chrome
+            agentId={agentId}
+            tabId={active.id}
+            url={active.url ?? 'about:blank'}
+            held={held}
+            onUrlChange={(url) => onUrlChange(active.id, url)}
+            onReturnControl={onReturnControl}
+            onTakeControl={onTakeControl}
+          />
+        ) : null}
+        {active.kind === 'terminal' && agentId ? (
+          <TerminalPane agentId={agentId} tabId={active.id} active={active.id === activeId} />
+        ) : null}
+        {active.kind === 'files' ? <div className="helper">Coming in a later build</div> : null}
       </div>
     </div>
   )

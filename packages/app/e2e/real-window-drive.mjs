@@ -19,7 +19,7 @@ const app = await electron.launch({
   cwd: root,
   env: {
     ...process.env,
-    OPENBOT_DAEMON_WS: 'ws://127.0.0.1:18799/?token=test-token&scenario=app',
+    OPENBOT_DAEMON_WS: 'ws://127.0.0.1:18799/?token=test-token&scenario=browser',
     OPENBOT_ALLOW_INTEL: '1',
   },
 })
@@ -41,9 +41,14 @@ checks.model = await page.getByTestId('model-picker').isVisible()
 checks.spend = await page.getByTestId('spend-chip').isVisible()
 checks.primary = await page.getByTestId('composer-primary').isVisible()
 checks.plus = await page.getByTestId('plus-menu').isVisible()
-await page.getByTestId('plus-menu').getByRole('button', { name: 'Add tab' }).click()
-checks.browserDisabled = await page.getByRole('button', { name: 'Browser' }).isDisabled()
-const shot = join(root, '../../saved-results/openbot-m2-real-window-2026-08-14.png')
+const plusHost = page.getByTestId('right-pane-plus-only').or(page.getByTestId('right-pane'))
+await plusHost.getByTestId('plus-menu').getByRole('button', { name: 'Add tab' }).click()
+checks.browserEnabled = await page.getByTestId('plus-browser').isEnabled()
+checks.terminalEnabled = await page.getByTestId('plus-terminal').isEnabled()
+checks.filesDisabled = await page.getByTestId('plus-files').isDisabled()
+await page.getByTestId('plus-browser').click()
+checks.browserChrome = await page.getByTestId('browser-chrome').isVisible()
+const shot = join(root, '../../saved-results/openbot-m5-real-window-2026-08-14.png')
 await page.screenshot({ path: shot, fullPage: true })
 const unread = await app.evaluate(() => {
   const g = globalThis

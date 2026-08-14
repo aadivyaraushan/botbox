@@ -5,7 +5,10 @@ import {
   dialog,
   Notification,
 } from 'electron'
+import { TerminalPtyManager } from './terminal-pty'
+import { BrowserViewManager } from './browser-views'
 import { join } from 'node:path'
+import { mkdirSync } from 'node:fs'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { WebSocket } from 'ws'
@@ -21,6 +24,12 @@ let ws: WebSocket | null = null
 let continueTipShown = false
 let quitting = false
 const pending = new Map<string, (v: Record<string, unknown>) => void>()
+const ptyManager = new TerminalPtyManager()
+const browserManager = new BrowserViewManager({
+  openBotHome: process.env.OPENBOT_HOME ?? join(require('node:os').homedir(), '.openbot'),
+})
+const agentSlug = new Map<string, string>()
+
 
 function repoRoot(): string {
   return join(app.getAppPath(), '../..')
@@ -54,6 +63,10 @@ function connectDaemon(url: string): void {
         resolve(v)
         return
       }
+    }
+    if (v.type === 'browser.exec' || v.type === 'terminal.read' || v.type === 'terminal.run') {
+      void handleDaemonAppRequest(v)
+      return
     }
     sendToRenderer(mainWindow, 'daemon:event', v)
   })
@@ -106,6 +119,43 @@ function spawnDaemon(adminToken: string): void {
   }, 400)
 }
 
+
+async function handleDaemonAppRequest(v: Record<string, unknown>): Promise<void> {
+  const id = String(v.id ?? '')
+  const reply = (body: Record<string, unknown>) => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return
+    ws.send(encodeFrame({ id, type: 'response', ...body }))
+  }
+  const agentId = String(v.agentId ?? '')
+  if (v.type === 'browser.exec') {
+    if (!agentSlug.has(agentId) && typeof v.slug === 'string') agentSlug.set(agentId, String(v.slug))
+    const slug = agentSlug.get(agentId) ?? 'agent'
+    const res = await browserManager.exec({ ...v, slug })
+    reply(res)
+    return
+  }
+  if (v.type === 'terminal.read') {
+    reply(ptyManager.read(agentId))
+    return
+  }
+  if (v.type === 'terminal.run') {
+    const slug = agentSlug.get(agentId) ?? 'agent'
+    const cwd =
+      typeof v.cwd === 'string'
+        ? v.cwd
+        : join(process.env.OPENBOT_HOME ?? join(require('node:os').homedir(), '.openbot'), 'agents', slug, 'workspace')
+    const res = await ptyManager.run({
+      agentId,
+      command: String(v.command ?? ''),
+      cwd,
+      timeoutMs: typeof v.timeoutMs === 'number' ? v.timeoutMs : undefined,
+      tabId: typeof v.tabId === 'string' ? v.tabId : undefined,
+      onCreated: (tabId) => sendToRenderer(mainWindow, 'terminal:need-tab', { agentId, tabId }),
+    })
+    reply(res)
+  }
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -124,6 +174,15 @@ function createWindow(): void {
   } else {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+  browserManager.setWindow(mainWindow)
+  browserManager.setHandlers({
+    onHumanControl: (agentId) => {
+      void daemonRequest({ type: 'browser.setHumanControl', agentId, held: true })
+    },
+    onTabMeta: (tabId, meta) => sendToRenderer(mainWindow, 'browser:meta', { tabId, ...meta }),
+    onNeedVisibleTab: (agentId, tabId) =>
+      sendToRenderer(mainWindow, 'browser:need-tab', { agentId, tabId }),
+  })
   mainWindow.on('close', (e) => {
     if (!quitting) {
       e.preventDefault()
@@ -155,7 +214,69 @@ void app.whenReady().then(() => {
     setTrayUnread(payload.count)
     return { ok: true }
   })
+  ipcMain.handle('browser:navigate', async (_e, p: { tabId: string; url: string; agentId?: string }) => {
+    if (p.agentId) {
+      const slug = agentSlug.get(p.agentId) ?? 'agent'
+      browserManager.ensureTab({ agentId: p.agentId, slug, tabId: p.tabId })
+    }
+    return browserManager.navigate(p.tabId, p.url)
+  })
+  ipcMain.handle('browser:back', (_e, p: { tabId: string }) => {
+    browserManager.back(p.tabId)
+    return { ok: true }
+  })
+  ipcMain.handle('browser:forward', (_e, p: { tabId: string }) => {
+    browserManager.forward(p.tabId)
+    return { ok: true }
+  })
+  ipcMain.handle('browser:reload', (_e, p: { tabId: string }) => {
+    browserManager.reload(p.tabId)
+    return { ok: true }
+  })
+  ipcMain.handle(
+    'browser:setBounds',
+    (
+      _e,
+      p: { agentId: string; tabId: string; rect: { x: number; y: number; width: number; height: number } },
+    ) => {
+      const slug = agentSlug.get(p.agentId) ?? 'agent'
+      browserManager.ensureTab({ agentId: p.agentId, slug, tabId: p.tabId })
+      browserManager.setBounds(p.agentId, p.tabId, p.rect)
+      return { ok: true }
+    },
+  )
+  ipcMain.handle('browser:ensure', (_e, p: { agentId: string; tabId: string }) => {
+    const slug = agentSlug.get(p.agentId) ?? 'agent'
+    browserManager.ensureTab({ agentId: p.agentId, slug, tabId: p.tabId, front: true })
+    return { ok: true }
+  })
+  ipcMain.handle('terminal:create', (_e, p: { agentId: string; tabId: string }) => {
+    const slug = agentSlug.get(p.agentId) ?? 'agent'
+    const cwd = join(
+      process.env.OPENBOT_HOME ?? join(require('node:os').homedir(), '.openbot'),
+      'agents',
+      slug,
+      'workspace',
+    )
+    mkdirSync(cwd, { recursive: true })
+    const entry = ptyManager.create({ agentId: p.agentId, tabId: p.tabId, cwd })
+    entry.pty.onData((data) => sendToRenderer(mainWindow, 'terminal:data', { tabId: p.tabId, data }))
+    return { ok: true, tabId: entry.tabId }
+  })
+  ipcMain.handle('terminal:write', (_e, p: { tabId: string; data: string }) => {
+    ptyManager.write(p.tabId, p.data)
+    return { ok: true }
+  })
+  ipcMain.handle('terminal:focus', (_e, p: { agentId: string; tabId: string }) => {
+    ptyManager.focus(p.agentId, p.tabId)
+    return { ok: true }
+  })
+
   ipcMain.handle('tray:getUnread', () => getTrayUnread())
+  ipcMain.handle('agent:rememberSlug', (_e, p: { agentId: string; slug: string }) => {
+    agentSlug.set(p.agentId, p.slug)
+    return { ok: true }
+  })
   ipcMain.handle('app:select-agent-from-notify', (_e, agentId: string) => {
     sendToRenderer(mainWindow, 'app:select-agent', agentId)
   })

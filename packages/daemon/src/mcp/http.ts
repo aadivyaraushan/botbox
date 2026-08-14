@@ -2,12 +2,14 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { registerPeerTools } from './peer-tools.js'
+import { registerBrowserTools, type BrowserToolDeps } from '../mcp-browser/tools.js'
 import type { PeerSendResult } from '../peer/deliver.js'
 
 export type McpDeps = {
   getToken: (agentId: string) => string | undefined
   listOthers: (callerId: string) => Array<{ id: string; name: string; slug: string }>
   messageAgent: (callerId: string, toAgentId: string, text: string) => Promise<PeerSendResult>
+  browserTools?: (agentId: string) => BrowserToolDeps
   onHandled?: (agentId: string, ok: boolean) => void
 }
 
@@ -35,6 +37,9 @@ export async function handleMcpRequest(
     listOthers: () => deps.listOthers(agentId),
     messageAgent: (to, text) => deps.messageAgent(agentId, to, text),
   })
+  if (deps.browserTools) {
+    registerBrowserTools(server, deps.browserTools(agentId))
+  }
 
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
   await server.connect(transport)

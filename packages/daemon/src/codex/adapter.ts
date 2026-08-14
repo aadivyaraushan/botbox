@@ -8,6 +8,15 @@ import { mapRequestUserInputToAsk, buildAskAnswerRpc } from './ask.js'
 import { assertSafeCodexArgv, buildAppServerArgv } from './exec-argv.js'
 import { assertNoHomeDirWritableRoots, buildCodexConfigToml } from './config.js'
 
+export function codexItemToolName(item: Record<string, unknown>): string {
+  const type = String(item.type ?? '')
+  if (type === 'commandExecution' || type === 'command_execution') return 'Bash'
+  if (type === 'mcpToolCall' || type === 'mcp_tool_call') {
+    return String(item.tool ?? item.name ?? 'mcp')
+  }
+  return String(item.tool ?? item.name ?? (type || 'tool'))
+}
+
 export type CodexRunTurnOptions = {
   spawnFn?: typeof defaultSpawn
   promptText: string
@@ -204,16 +213,17 @@ export function runCodexTurn(opts: CodexRunTurnOptions): CodexRunTurnHandle {
           }
         } else if (type === 'commandExecution' || type === 'command_execution') {
           const callId = String(item.id ?? 'cmd')
+          const name = codexItemToolName(item)
           await opts.onEvent({
             kind: 'tool-use',
             callId,
-            name: 'Bash',
+            name,
             inputSummary: String(item.command ?? '').slice(0, 200),
           })
           await opts.onEvent({
             kind: 'tool-result',
             callId,
-            name: 'Bash',
+            name,
             ok: item.status !== 'failed',
             outputSummary: String(item.aggregated_output ?? item.aggregatedOutput ?? '').slice(
               0,
@@ -222,7 +232,7 @@ export function runCodexTurn(opts: CodexRunTurnOptions): CodexRunTurnHandle {
           })
         } else if (type === 'mcpToolCall' || type === 'mcp_tool_call') {
           const callId = String(item.id ?? 'mcp')
-          const name = String(item.tool ?? item.name ?? 'mcp')
+          const name = codexItemToolName(item)
           await opts.onEvent({
             kind: 'tool-use',
             callId,
