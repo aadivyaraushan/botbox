@@ -23,7 +23,7 @@ describe('shell-mcp', () => {
     expect(opts.disallowedTools ?? []).not.toContain('Bash')
   })
 
-  it('preferred Codex: shell_tool = false in config.toml', () => {
+  it('default Codex omits shell_tool=false (capability-first until live MCP proof)', () => {
     const toml = buildCodexConfigToml({
       agentId: 'a',
       mcpToken: 'tok',
@@ -33,10 +33,24 @@ describe('shell-mcp', () => {
       home: '/tmp/openbot-home',
       otherAgentDirs: [],
     })
+    expect(toml).not.toContain('shell_tool = false')
+  })
+
+  it('preferred Codex: shellToolFalse true → shell_tool = false in config.toml', () => {
+    const toml = buildCodexConfigToml({
+      agentId: 'a',
+      mcpToken: 'tok',
+      mcpPort: 8799,
+      hindsightPort: 8888,
+      memoryBankId: 'bank',
+      home: '/tmp/openbot-home',
+      otherAgentDirs: [],
+      shellToolFalse: true,
+    })
     expect(toml).toContain('shell_tool = false')
   })
 
-  it('fallback: failed Codex probe omits shell_tool=false; command_execution still maps', () => {
+  it('fallback: shellToolFalse false omits shell_tool=false; command_execution still maps', () => {
     const toml = buildCodexConfigToml({
       agentId: 'a',
       mcpToken: 'tok',

@@ -64,7 +64,7 @@ describe('codex config.toml', () => {
     })
     const toml = await fsp.readFile(path.join(agentHome, 'config.toml'), 'utf8')
     expect(toml).toContain('default_permissions = "openbot"')
-    expect(toml).toContain('shell_tool = false')
+    expect(toml).not.toContain('shell_tool = false')
     expect(toml).toContain(`url = "http://127.0.0.1:9123/mcp/bank-1/"`)
     expect(toml).not.toMatch(/writable_roots/)
     expect(toml).not.toContain('homeDir')
