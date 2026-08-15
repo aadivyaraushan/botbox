@@ -10,7 +10,7 @@ export type CodexConfigInput = {
   memoryBankId: string
   home: string
   otherAgentDirs: string[]
-  /** Prefer MCP shell when true (default). Omit shell_tool=false on failed probe. */
+  /** Prefer MCP shell only when true (after live MCP shell_run proof). Default keeps built-in. */
   shellToolFalse?: boolean
 }
 
@@ -28,7 +28,7 @@ export function buildCodexConfigToml(input: CodexConfigInput): string {
     '',
     '[features]',
     'default_mode_request_user_input = true',
-    ...(input.shellToolFalse === false ? [] : ['shell_tool = false']),
+    ...(input.shellToolFalse === true ? ['shell_tool = false'] : []),
     '',
     '[permissions.openbot]',
     'description = "OpenBot agent"',
