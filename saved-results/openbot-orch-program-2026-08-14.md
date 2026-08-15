@@ -272,3 +272,26 @@ Allow-click E2E **not** closed (re-grant still human after each ad-hoc rebuild).
 - `m7-human` — stranger test
 
 <!-- GateGuard: existing checkpoint. Callers: orch status. User: Close remaining engineering gaps; update checkpoint. -->
+
+## Pass-4 judge gaps (2026-08-15)
+
+Independent judge: `saved-results/openbot-m0-m6-orch-judgment-2026-08-15-pass4.md` → **PASS-WITH-GAPS**.
+
+## Pass-4 engineering landed (2026-08-15)
+
+| Unit | PR | Merge SHA | Verdict | Evidence |
+|---|---|---|---|---|
+| p4-hindsight | [#22](https://github.com/aadivyaraushan/botbox/pull/22) | `e35bcc0` | live-ui-verified | HOME→`hindsight/data`; baked `pg0-installation`; Codex retain/recall; `saved-results/openbot-hindsight-live-verify-2026-08-15.md` |
+| p4-m5 | [#23](https://github.com/aadivyaraushan/botbox/pull/23) | `8d5614d` | live-ui-verified | needs-site/allow, stayHidden, agent shell→Terminal, terminal_read; `saved-results/openbot-m5-agent-drive-2026-08-15.md` |
+| p4-m4 | [#24](https://github.com/aadivyaraushan/botbox/pull/24) | `0070880` | live-ui-verified | two live Codex agents peer; `saved-results/openbot-m4-live-peer-2026-08-15.md` |
+| p4-shell | [#25](https://github.com/aadivyaraushan/botbox/pull/25) | `843cd03` | live-ui-verified | MCP shell_run not proven → restore built-in (omit `shell_tool=false`); `saved-results/openbot-codex-shell-live-verify-2026-08-15.md` |
+
+**Main tip after pass-4:** `843cd03`.
+
+### Still gated (human)
+- `m1-smoke-max-pro` — Claude Max/Pro
+- `m2b-allow-click` — Accessibility + Screen Recording re-grant
+- `m7-human` — stranger test
+
+<!-- GateGuard: existing checkpoint. Callers: orch status. User: Close pass-4 engineering gaps. -->
+
