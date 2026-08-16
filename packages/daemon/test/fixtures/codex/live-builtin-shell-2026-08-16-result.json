@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "observedCommandExecution": true,
+  "command": "/bin/zsh -c 'echo openbot-builtin-shell-ok'",
+  "stdout": "openbot-builtin-shell-ok\n",
+  "exitCode": 0,
+  "turnCompleted": true,
+  "turnFailed": false,
+  "processExitCode": 0,
+  "shellToolFalse": false,
+  "configOmitsShellToolFalse": true,
+  "executions": [
+    {
+      "command": "/bin/zsh -c 'echo openbot-builtin-shell-ok'",
+      "aggregated_output": "openbot-builtin-shell-ok\n",
+      "exit_code": 0,
+      "status": "completed"
+    }
+  ],
+  "sharedCodexHome": "/Users/aadivyar/.openbot/codex-home",
+  "agentCodexHome": "/tmp/openbot-builtin-shell-live-2026-08-16/codex-home",
+  "jsonlPath": "/tmp/openbot-builtin-shell-live-2026-08-16/out.jsonl",
+  "errPath": "/tmp/openbot-builtin-shell-live-2026-08-16/err.log",
+  "note": "Live built-in command_execution observed (command + stdout)"
+}
