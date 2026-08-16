@@ -33,7 +33,9 @@ function findApp() {
 }
 
 function duBytes(dir) {
-  const out = execFileSync('du', ['-sk', dir], { encoding: 'utf8' })
+  // macOS `du -sk` on a symlink reports 0 (the link inode); follow to the real tree.
+  const resolved = fs.realpathSync(dir)
+  const out = execFileSync('du', ['-sk', resolved], { encoding: 'utf8' })
   const kb = Number(out.trim().split(/\s+/)[0])
   if (!Number.isFinite(kb)) throw new Error('du failed for ' + dir)
   return kb * 1024
