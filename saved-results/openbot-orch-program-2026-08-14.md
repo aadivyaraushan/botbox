@@ -295,3 +295,30 @@ Independent judge: `saved-results/openbot-m0-m6-orch-judgment-2026-08-15-pass4.m
 
 <!-- GateGuard: existing checkpoint. Callers: orch status. User: Close pass-4 engineering gaps. -->
 
+
+## Pass-5 judge gaps (2026-08-16)
+
+Independent judge: `saved-results/openbot-m0-m6-orch-judgment-2026-08-16-pass5.md` → **PASS-WITH-GAPS** (reviewed tip `93814ad`).
+
+## Pass-5 engineering landed (2026-08-16)
+
+| Unit | PR | Merge SHA | Verdict | Evidence |
+|---|---|---|---|---|
+| p5-plan | [#27](https://github.com/aadivyaraushan/botbox/pull/27) | `809d88f` | unit-test-verified | §8 Codex argv → `codex app-server` for main/ask/resume; compact stays `codex exec`; stop-and-revise kept |
+| p5-shell | [#28](https://github.com/aadivyaraushan/botbox/pull/28) | `c363284` | live-ui-verified | Live `command_execution` `echo openbot-builtin-shell-ok` stdout; `saved-results/openbot-codex-builtin-shell-live-2026-08-16.md` |
+| p5-signed | [#29](https://github.com/aadivyaraushan/botbox/pull/29) | `c6f2a01` | live-ui-verified | Same ad-hoc app: `Identifier=com.openbot.app` + entitlements + `PASS agent.list`; `saved-results/openbot-signed-composed-drive-2026-08-16.md` |
+
+**Main tip after pass-5:** `c6f2a01`.
+
+### Plan §8 diff (summary)
+- Removed stale bullets that said first turn / resume use `codex exec … --json`.
+- Locked main/ask/resume to `buildAppServerArgv` → `codex app-server --listen stdio:// --strict-config` + JSON-RPC `thread/start|resume` / `turn/start`.
+- Compact remains `codex exec`. Explicit: do not change working adapter back to exec.
+- Verify step: resume via app-server JSON-RPC, not `codex exec resume`.
+
+### Still gated (human)
+- `m1-smoke-max-pro` — Claude Max/Pro
+- `m2b-allow-click` — Accessibility + Screen Recording re-grant (Allow-click not closed)
+- `m7-human` — stranger test
+
+<!-- GateGuard: existing checkpoint. Callers: orch status. User: Close remaining engineering gaps; update checkpoint. -->
