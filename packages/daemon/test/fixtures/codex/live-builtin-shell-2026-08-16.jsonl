@@ -1,0 +1,8 @@
+{"type":"thread.started","thread_id":"01a00853-2844-71c1-85b3-8b81dcb7ab37"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."}}
+{"type":"item.completed","item":{"id":"item_1","type":"error","message":"`--dangerously-bypass-hook-trust` is enabled. Enabled hooks may run without review for this invocation."}}
+{"type":"turn.started"}
+{"type":"item.started","item":{"id":"item_2","type":"command_execution","command":"/bin/zsh -c 'echo openbot-builtin-shell-ok'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"command_execution","command":"/bin/zsh -c 'echo openbot-builtin-shell-ok'","aggregated_output":"openbot-builtin-shell-ok\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"openbot-builtin-shell-ok"}}
+{"type":"turn.completed","usage":{"input_tokens":25140,"cached_input_tokens":12032,"cache_write_input_tokens":0,"output_tokens":100,"reasoning_output_tokens":33}}
