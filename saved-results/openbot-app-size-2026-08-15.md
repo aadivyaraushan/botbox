@@ -4,12 +4,12 @@ Date: 2026-08-15
 
 What: one OpenBot.app with real Hindsight (~2GB class) and live packaged daemon. No size cap.
 
-App: `/Users/aadivyar/Documents/Startups/grok-bot-clone-wt-p2-compose/packages/app/dist/mac-arm64/OpenBot.app`
+App: `/Users/aadivyar/Documents/Startups/grok-bot-clone-wt-p5-signed/packages/app/dist/mac-arm64/OpenBot.app`
 
 | Artifact | Size |
 |---|---|
-| OpenBot.app | **2.8G** (3010981888 bytes via `du -sk`) |
-| Contents/Resources/hindsight | **2.5G** (2697134080 bytes) |
+| OpenBot.app | **3.1G** (3324661760 bytes via `du -sk`) |
+| Contents/Resources/hindsight | **2.5G** (2689007616 bytes) |
 | Contents/Resources/daemon/main.mjs | present |
 
 Evidence:
