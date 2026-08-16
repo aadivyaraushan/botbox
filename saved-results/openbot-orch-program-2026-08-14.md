@@ -322,3 +322,32 @@ Independent judge: `saved-results/openbot-m0-m6-orch-judgment-2026-08-16-pass5.m
 - `m7-human` — stranger test
 
 <!-- GateGuard: existing checkpoint. Callers: orch status. User: Close remaining engineering gaps; update checkpoint. -->
+
+## Pass-6 judge gaps (2026-08-16)
+
+Independent judge: `saved-results/openbot-m0-m6-orch-judgment-2026-08-16-pass6.md` → **PASS-WITH-GAPS** (reviewed tip `ab405d7`).
+
+## Pass-6 engineering landed (2026-08-16)
+
+| Unit | PR | Merge SHA | Verdict | Evidence |
+|---|---|---|---|---|
+| p6-plan | [#31](https://github.com/aadivyaraushan/botbox/pull/31) | `5d5e70d` | unit-test-verified | §8 M1b: generated config **omits** `shell_tool = false` (capability-first); matches `codex.test.ts` / `shell-mcp.test.ts` / §3.5 |
+| p6-shell | [#32](https://github.com/aadivyaraushan/botbox/pull/32) | `a9ea186` | live-ui-verified | Live `app-server` `commandExecution` + adapter tests; honest evidence `saved-results/openbot-codex-appserver-shell-2026-08-16.md`; old exec+sandbox note amended |
+
+**Main tip after pass-6 engineering:** `a9ea186` (before this checkpoint PR).
+
+### Plan §8 shell_tool sentence (diff summary)
+- Previous: generated `config.toml` has … `shell_tool = false` …
+- New: generated `config.toml` has … omits `shell_tool = false` (capability-first until MCP `shell_run` is live-proven) …
+
+### New fixture / tests
+- Fixture: `packages/daemon/test/fixtures/codex/app-server-command-execution.jsonl`
+- Tests: `packages/daemon/test/codex-app-server-shell.test.ts`
+- Live script: `packages/daemon/scripts/codex-appserver-shell-live.mjs`
+
+### Still gated (human)
+- `m1-smoke-max-pro` — Claude Max/Pro
+- `m2b-allow-click` — Accessibility + Screen Recording re-grant
+- `m7-human` — stranger test
+
+<!-- GateGuard: existing checkpoint. Callers: orch status. User: Close remaining engineering gaps; update checkpoint. -->
