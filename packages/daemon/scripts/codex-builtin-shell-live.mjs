@@ -1,17 +1,32 @@
 #!/usr/bin/env node
 /**
- * Observe a real Codex built-in command_execution turn (command + stdout).
- * Not config-only restoredBuiltinOk. Default config must omit shell_tool=false.
+ * OFF-PATH historical probe only. Uses `codex exec` + `--sandbox danger-full-access`.
+ * That is NOT the shipped OpenBot main-turn path (app-server + permission profile).
+ * assertSafeCodexArgv throws on --sandbox; do not treat this script as product proof.
  *
- * CODEX_HOME=~/.openbot/codex-home \
- *   node packages/daemon/scripts/codex-builtin-shell-live.mjs
+ * Shipped-path proof: packages/daemon/scripts/codex-appserver-shell-live.mjs
+ * Evidence: saved-results/openbot-codex-appserver-shell-2026-08-16.md
  *
- * Exit 0 when command_execution ran echo openbot-builtin-shell-ok and stdout matched.
+ * To run this archival script anyway:
+ *   OPENBOT_ALLOW_OFFPATH_EXEC_SANDBOX_PROOF=1 CODEX_HOME=~/.openbot/codex-home \
+ *     node packages/daemon/scripts/codex-builtin-shell-live.mjs
  */
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+
+if (process.env.OPENBOT_ALLOW_OFFPATH_EXEC_SANDBOX_PROOF !== '1') {
+  console.error(
+    [
+      'codex-builtin-shell-live: REFUSED.',
+      'This script uses `codex exec --sandbox danger-full-access` (off-path).',
+      'Shipped proof: pnpm exec tsx packages/daemon/scripts/codex-appserver-shell-live.mjs',
+      'Override only with OPENBOT_ALLOW_OFFPATH_EXEC_SANDBOX_PROOF=1',
+    ].join('\n'),
+  )
+  process.exit(4)
+}
 
 const MARKER = 'openbot-builtin-shell-ok'
 const sharedCodex =
